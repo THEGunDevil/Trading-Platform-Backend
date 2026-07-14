@@ -34,6 +34,34 @@ func (q *Queries) BanUser(ctx context.Context, arg BanUserParams) error {
 	return err
 }
 
+const countUsers = `-- name: CountUsers :one
+SELECT COUNT(*) FROM users
+`
+
+func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countUsersByEmail = `-- name: CountUsersByEmail :one
+SELECT COUNT(*)
+FROM users
+WHERE
+    (CASE 
+        WHEN $1 = '' THEN TRUE
+        ELSE email ILIKE '%' || $1 || '%'
+    END)
+`
+
+func (q *Queries) CountUsersByEmail(ctx context.Context, dollar_1 interface{}) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsersByEmail, dollar_1)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (user_name, phone_number, email, password_hash)
 VALUES ($1, $2, $3, $4)
@@ -176,6 +204,112 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	return items, nil
 }
 
+const listUsersPaginated = `-- name: ListUsersPaginated :many
+SELECT id, user_name, phone_number, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban FROM users
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListUsersPaginatedParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListUsersPaginated(ctx context.Context, arg ListUsersPaginatedParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, listUsersPaginated, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserName,
+			&i.PhoneNumber,
+			&i.Email,
+			&i.PasswordHash,
+			&i.Role,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TokenVersion,
+			&i.IsBanned,
+			&i.BanReason,
+			&i.BanUntil,
+			&i.IsPermanentBan,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchUsersByEmailWithPagination = `-- name: SearchUsersByEmailWithPagination :many
+SELECT
+    id,
+    user_name,
+    email,
+    role,
+    created_at,
+    updated_at
+FROM users
+WHERE
+    (CASE 
+        WHEN $1 = '' THEN TRUE
+        ELSE email ILIKE '%' || $1 || '%'
+    END)
+ORDER BY email
+LIMIT $2
+OFFSET $3
+`
+
+type SearchUsersByEmailWithPaginationParams struct {
+	Column1 interface{} `json:"column_1"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
+}
+
+type SearchUsersByEmailWithPaginationRow struct {
+	ID        pgtype.UUID      `json:"id"`
+	UserName  string           `json:"user_name"`
+	Email     string           `json:"email"`
+	Role      pgtype.Text      `json:"role"`
+	CreatedAt pgtype.Timestamp `json:"created_at"`
+	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+}
+
+func (q *Queries) SearchUsersByEmailWithPagination(ctx context.Context, arg SearchUsersByEmailWithPaginationParams) ([]SearchUsersByEmailWithPaginationRow, error) {
+	rows, err := q.db.Query(ctx, searchUsersByEmailWithPagination, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchUsersByEmailWithPaginationRow
+	for rows.Next() {
+		var i SearchUsersByEmailWithPaginationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserName,
+			&i.Email,
+			&i.Role,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unbanUser = `-- name: UnbanUser :exec
 UPDATE users
 SET is_banned = false, ban_reason = NULL, ban_until = NULL, is_permanent_ban = false
@@ -204,19 +338,26 @@ func (q *Queries) UpdatePasswordHash(ctx context.Context, arg UpdatePasswordHash
 
 const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users
-SET user_name = $2, phone_number = $3, updated_at = NOW()
-WHERE id = $1
+SET
+  user_name            = COALESCE($1, user_name),
+  phone_number          = COALESCE($2, phone_number),
+  updated_at            = NOW()
+WHERE id = $3
 RETURNING id, user_name, phone_number, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban
 `
 
 type UpdateUserProfileParams struct {
+	UserName    pgtype.Text `json:"user_name"`
+	PhoneNumber pgtype.Text `json:"phone_number"`
 	ID          pgtype.UUID `json:"id"`
-	UserName    string      `json:"user_name"`
-	PhoneNumber string      `json:"phone_number"`
 }
 
+// UPDATE users
+// SET user_name = $2, phone_number = $3, updated_at = NOW()
+// WHERE id = $1
+// RETURNING *;
 func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserProfile, arg.ID, arg.UserName, arg.PhoneNumber)
+	row := q.db.QueryRow(ctx, updateUserProfile, arg.UserName, arg.PhoneNumber, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

@@ -71,21 +71,19 @@ func main() {
 	// User routes (protected)
 	userGroup := r.Group("/users")
 	userGroup.Use(middleware.AuthMiddleware())
-	// {
-	// 	userGroup.GET("/", middleware.SkipRateLimit(), middleware.AdminOnly(), handlers.GetUsersHandler)
-	// 	userGroup.GET("/user/email", middleware.AdminOnly(), middleware.SkipRateLimit(), handlers.SearchUsersPaginatedHandler)
-	// 	userGroup.GET("/user/:id", handlers.GetUserByIDHandler)
-	// 	userGroup.GET("/user/profile/:id", handlers.GetProfileDataByIDHandler)
-	// 	userGroup.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
-	// 	userGroup.PATCH("/user/ban/:id", middleware.AdminOnly(), handlers.BanUserByIDHandler)
-	// 	userGroup.DELETE("/user/:id", handlers.DeleteProfileImage)
-	// }
+	{
+		userGroup.GET("/", middleware.SkipRateLimit(), middleware.AdminOnly(), handlers.GetUsersHandler)
+		userGroup.GET("/user/email", middleware.AdminOnly(), middleware.SkipRateLimit(), handlers.SearchUsersPaginatedHandler)
+		userGroup.GET("/user/:id", handlers.GetUserByIDHandler)
+		userGroup.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
+		userGroup.PATCH("/user/ban/:id", middleware.AdminOnly(), handlers.BanUserByIDHandler)
+	}
 
 	bannedUserGroup := r.Group("/banned-users")
 	bannedUserGroup.Use(middleware.AuthMiddleware())
-	// {
-	// 	bannedUserGroup.GET("/", middleware.AdminOnly(), handlers.GetUsersHandler)
-	// }
+	{
+		bannedUserGroup.GET("/", middleware.AdminOnly(), handlers.GetUsersHandler)
+	}
 // 3. Order routes (protected)
 	orderGroup := r.Group("/api/orders")
 	orderGroup.Use(middleware.AuthMiddleware())

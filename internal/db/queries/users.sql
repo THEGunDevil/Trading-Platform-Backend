@@ -10,11 +10,18 @@ SELECT * FROM users WHERE id = $1;
 SELECT * FROM users WHERE email = $1;
 
 -- name: UpdateUserProfile :one
+-- UPDATE users
+-- SET user_name = $2, phone_number = $3, updated_at = NOW()
+-- WHERE id = $1
+-- RETURNING *;
+-- name: UpdateUserByID :one
 UPDATE users
-SET user_name = $2, phone_number = $3, updated_at = NOW()
-WHERE id = $1
+SET
+  user_name            = COALESCE(sqlc.narg(user_name), user_name),
+  phone_number          = COALESCE(sqlc.narg(phone_number), phone_number),
+  updated_at            = NOW()
+WHERE id = sqlc.arg(id)
 RETURNING *;
-
 -- name: UpdatePasswordHash :exec
 UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = NOW()
 WHERE id = $1;
@@ -35,3 +42,35 @@ WHERE id = $1;
 
 -- name: ListUsers :many
 SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+-- name: CountUsersByEmail :one
+SELECT COUNT(*)
+FROM users
+WHERE
+    (CASE 
+        WHEN $1 = '' THEN TRUE
+        ELSE email ILIKE '%' || $1 || '%'
+    END);
+-- name: SearchUsersByEmailWithPagination :many
+SELECT
+    id,
+    user_name,
+    email,
+    role,
+    created_at,
+    updated_at
+FROM users
+WHERE
+    (CASE 
+        WHEN $1 = '' THEN TRUE
+        ELSE email ILIKE '%' || $1 || '%'
+    END)
+ORDER BY email
+LIMIT $2
+OFFSET $3;
+
+-- name: CountUsers :one
+SELECT COUNT(*) FROM users;
+-- name: ListUsersPaginated :many
+SELECT * FROM users
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
