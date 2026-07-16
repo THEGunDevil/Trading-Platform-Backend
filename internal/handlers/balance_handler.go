@@ -6,11 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
-	gen"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
+	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
 )
 
-// GET /api/balances
+// GET /api/balances/
 func ListBalances(c *gin.Context) {
 	userID, ok := service.UserIDFromContext(c)
 	if !ok {
@@ -24,7 +24,14 @@ func ListBalances(c *gin.Context) {
 		return
 	}
 
-	service.WriteJSON(c, http.StatusOK, balances)
+	result, err := service.ToBalanceModels(balances)
+	if err != nil {
+		service.AbortWithError(c, http.StatusInternalServerError, "failed to format balances")
+		return
+	}
+
+	service.WriteJSON(c, http.StatusOK, result)
+
 }
 
 // GET /api/balances/:asset
@@ -46,5 +53,11 @@ func GetBalance(c *gin.Context) {
 		return
 	}
 
-	service.WriteJSON(c, http.StatusOK, balance)
+	result, err := service.ToBalanceModel(balance)
+	if err != nil {
+		service.AbortWithError(c, http.StatusInternalServerError, "failed to format balance")
+		return
+	}
+
+	service.WriteJSON(c, http.StatusOK, result)
 }

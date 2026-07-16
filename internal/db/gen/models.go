@@ -66,6 +66,25 @@ type Order struct {
 	FilledAt  pgtype.Timestamp `json:"filled_at"`
 }
 
+type Prediction struct {
+	ID              pgtype.UUID        `json:"id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	CoinID          string             `json:"coin_id"`
+	Symbol          string             `json:"symbol"`
+	Amount          pgtype.Numeric     `json:"amount"`
+	Direction       string             `json:"direction"`
+	DurationSeconds int32              `json:"duration_seconds"`
+	StartPrice      pgtype.Numeric     `json:"start_price"`
+	FinalPrice      pgtype.Numeric     `json:"final_price"`
+	PayoutRate      pgtype.Numeric     `json:"payout_rate"`
+	Status          string             `json:"status"`
+	Profit          pgtype.Numeric     `json:"profit"`
+	Payout          pgtype.Numeric     `json:"payout"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
+}
+
 type RefreshToken struct {
 	ID        pgtype.UUID      `json:"id"`
 	UserID    pgtype.UUID      `json:"user_id"`
@@ -106,7 +125,6 @@ type Trade struct {
 type User struct {
 	ID             pgtype.UUID      `json:"id"`
 	UserName       string           `json:"user_name"`
-	PhoneNumber    string           `json:"phone_number"`
 	Email          string           `json:"email"`
 	PasswordHash   string           `json:"password_hash"`
 	Role           pgtype.Text      `json:"role"`

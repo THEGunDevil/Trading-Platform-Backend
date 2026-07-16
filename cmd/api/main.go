@@ -63,7 +63,7 @@ func main() {
 	authGroup := r.Group("/auth")
 	{
 		authGroup.POST("/register", handlers.RegisterHandler)
-		authGroup.POST("/login", handlers.LoginHandler)
+		authGroup.POST("/signin", handlers.LoginHandler)
 		authGroup.POST("/refresh", handlers.RefreshHandler)
 		authGroup.POST("/logout", handlers.LogoutHandler)
 	}
@@ -78,19 +78,35 @@ func main() {
 		userGroup.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
 		userGroup.PATCH("/user/ban/:id", middleware.AdminOnly(), handlers.BanUserByIDHandler)
 	}
-
+	// Balance routes (protected)
+	balanceGroup := r.Group("/api/balances")
+	balanceGroup.Use(middleware.AuthMiddleware())
+	{
+		balanceGroup.GET("/", handlers.ListBalances)
+		balanceGroup.GET("/:asset", handlers.GetBalance)
+	}
 	bannedUserGroup := r.Group("/banned-users")
 	bannedUserGroup.Use(middleware.AuthMiddleware())
 	{
 		bannedUserGroup.GET("/", middleware.AdminOnly(), handlers.GetUsersHandler)
 	}
-// 3. Order routes (protected)
+	// 3. Order routes (protected)
 	orderGroup := r.Group("/api/orders")
 	orderGroup.Use(middleware.AuthMiddleware())
 	{
 		// This is where you actually USE orderHandler!
 		orderGroup.POST("/", orderHandler.PlaceOrder)
 		orderGroup.DELETE("/:id", orderHandler.CancelOrder)
+	}
+	// Prediction routes
+	predictionGroup := r.Group("/predictions")
+	predictionGroup.Use(middleware.AuthMiddleware())
+	{
+		predictionGroup.POST("/place", handlers.PlacePrediction)
+		predictionGroup.GET("/result/:id", handlers.GetPredictionResult)
+		predictionGroup.GET("/active", handlers.GetActivePredictions)
+		predictionGroup.GET("/history", handlers.GetPredictionHistory)
+		predictionGroup.POST("/cancel/:id", handlers.CancelPrediction)
 	}
 	port := os.Getenv("PORT")
 	if port == "" {

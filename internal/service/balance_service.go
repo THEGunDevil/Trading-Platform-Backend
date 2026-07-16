@@ -8,6 +8,7 @@ import (
 
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
 	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
+	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/models"
 )
 
 // BalanceService encapsulates balance-related operations and holds a reference to the db.Store.
@@ -80,4 +81,38 @@ func UnlockBalance(ctx context.Context, q *gen.Queries, userID uuid.UUID, asset 
 		Locked: amount,
 	})
 	return err
+}
+
+// ToBalanceModel converts a sqlc-generated gen.Balance (pgtype fields) into
+// the clean, JSON-friendly models.Balance the API actually returns.
+func ToBalanceModel(b gen.Balance) (models.Balance, error) {
+	available, err := NumericToString(b.Available)
+	if err != nil {
+		return models.Balance{}, err
+	}
+	locked, err := NumericToString(b.Locked)
+	if err != nil {
+		return models.Balance{}, err
+	}
+
+	return models.Balance{
+		UserID:    PGTypeToUUID(b.UserID),
+		Asset:     b.Asset,
+		Available: available,
+		Locked:    locked,
+		UpdatedAt: b.UpdatedAt.Time,
+	}, nil
+}
+
+// ToBalanceModels converts a slice, for list endpoints.
+func ToBalanceModels(balances []gen.Balance) ([]models.Balance, error) {
+	result := make([]models.Balance, 0, len(balances))
+	for _, b := range balances {
+		m, err := ToBalanceModel(b)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, m)
+	}
+	return result, nil
 }

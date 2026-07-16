@@ -4,7 +4,6 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_name VARCHAR(50) NOT NULL DEFAULT '',
-    phone_number TEXT NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     role TEXT DEFAULT 'member' CHECK (role IN ('member', 'admin')),
@@ -37,7 +36,29 @@ CREATE TABLE user_notification_status (
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(user_id, event_id)       
 );
+-- Only add predictions table, reuse balances for USDT
+CREATE TABLE predictions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    coin_id VARCHAR(50) NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    amount DECIMAL(30,10) NOT NULL CHECK (amount > 0),
+    direction VARCHAR(4) NOT NULL CHECK (direction IN ('up', 'down')),
+    duration_seconds INT NOT NULL CHECK (duration_seconds IN (10, 30, 60, 300)),
+    start_price DECIMAL(30,10) NOT NULL,
+    final_price DECIMAL(30,10),
+    payout_rate DECIMAL(5,4) NOT NULL DEFAULT 0.8000,
+    status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'won', 'lost', 'cancelled')),
+    profit DECIMAL(30,10) DEFAULT 0,
+    payout DECIMAL(30,10) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    resolved_at TIMESTAMPTZ
+);
 
+CREATE INDEX idx_predictions_user_id ON predictions(user_id);
+CREATE INDEX idx_predictions_status ON predictions(status);
+CREATE INDEX idx_predictions_expires ON predictions(expires_at) WHERE status = 'active';
 -- Refresh tokens for login sessions (pairs with users.token_version for revocation)
 CREATE TABLE refresh_tokens (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -173,3 +194,4 @@ DROP TABLE IF EXISTS refresh_tokens CASCADE;
 DROP TABLE IF EXISTS user_notification_status CASCADE;
 DROP TABLE IF EXISTS events CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS predictions CASCADE;

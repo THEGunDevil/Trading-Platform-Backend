@@ -24,12 +24,6 @@ func RegisterHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-
-	if req.Password != req.ConfirmPassword {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "passwords do not match"})
-		return
-	}
-
 	if len(req.UserName) < 3 || len(req.UserName) > 25 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "username must be 3-25 characters",
@@ -51,7 +45,6 @@ func RegisterHandler(c *gin.Context) {
 	user, err := db.Q.CreateUser(c.Request.Context(), gen.CreateUserParams{
 		UserName:     req.UserName,
 		Email:        req.Email,
-		PhoneNumber:  req.PhoneNumber,
 		PasswordHash: hashed,
 	})
 	if err != nil {
@@ -67,9 +60,7 @@ func RegisterHandler(c *gin.Context) {
 		ID:          user.ID.Bytes,
 		UserName:    user.UserName,
 		Email:       user.Email,
-		PhoneNumber: user.PhoneNumber,
 		CreatedAt:   user.CreatedAt.Time,
-		Role:        user.Role.String,
 	}
 
 	c.JSON(http.StatusCreated, resp)

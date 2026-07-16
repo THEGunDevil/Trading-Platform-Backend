@@ -10,9 +10,7 @@ type User struct {
 	ID                 uuid.UUID  `json:"id"`
 	UserName          string     `json:"user_name"`
 	Email              string     `json:"email"`
-	PhoneNumber        string     `json:"phone_number"`
 	Password           string     `json:"password"`
-	ConfirmPassword    string     `json:"confirm_password"`
 	Role               string     `json:"role"`
 	TokenVersion       int        `json:"token_version"` // added
 	IsBanned           bool       `json:"is_banned"`
@@ -24,16 +22,13 @@ type User struct {
 
 type UpdateUserRequest struct {
 	UserName          *string               `form:"user_name"`
-	PhoneNumber        *string               `form:"phone_number"`
 }
 
 type UserResponse struct {
 	ID                 uuid.UUID  `json:"id"`
 	UserName          string     `json:"first_name"`
 	Email              string     `json:"email"`
-	PhoneNumber        string     `json:"phone_number"`
 	CreatedAt          time.Time  `json:"created_at"`
-	Role               string     `json:"role"`
 	TokenVersion       int        `json:"token_version"` // added
 	IsBanned           bool       `json:"is_banned"`
 	BanReason          string     `json:"ban_reason"`

@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"strconv"
 	"time"
 
@@ -218,4 +220,31 @@ func AbortWithError(c *gin.Context, status int, message string) {
 
 func WriteJSON(c *gin.Context, status int, payload any) {
 	c.JSON(status, payload)
+}
+func CoinIDToSymbol(coinID string) string {
+	mapping := map[string]string{
+		"bitcoin":     "BTCUSDT",
+		"ethereum":    "ETHUSDT",
+		"solana":      "SOLUSDT",
+		"binancecoin": "BNBUSDT",
+		"ripple":      "XRPUSDT",
+	}
+	if symbol, ok := mapping[coinID]; ok {
+		return symbol
+	}
+	return coinID + "USDT"
+}
+
+// NumericToFloat64 converts pgtype.Numeric to float64
+func NumericToFloat64(n pgtype.Numeric) float64 {
+	if !n.Valid || n.Int == nil {
+		return 0
+	}
+	f := new(big.Float).SetInt(n.Int)
+	if n.Exp != 0 {
+		exp := new(big.Float).SetFloat64(math.Pow10(int(-n.Exp)))
+		f.Mul(f, exp)
+	}
+	result, _ := f.Float64()
+	return result
 }

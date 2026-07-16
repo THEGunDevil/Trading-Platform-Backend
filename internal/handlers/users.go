@@ -61,8 +61,6 @@ func GetUsersHandler(c *gin.Context) {
 			ID:             user.ID.Bytes,
 			UserName:       user.UserName,
 			Email:          user.Email,
-			PhoneNumber:    user.PhoneNumber,
-			Role:           user.Role.String,
 			IsBanned:       user.IsBanned.Bool,
 			BanUntil:       &user.BanUntil.Time,
 			BanReason:      user.BanReason.String,
@@ -111,8 +109,6 @@ func GetUserByIDHandler(c *gin.Context) {
 		ID:             user.ID.Bytes,
 		UserName:       user.UserName,
 		Email:          user.Email,
-		PhoneNumber:    user.PhoneNumber,
-		Role:           user.Role.String,
 		IsBanned:       user.IsBanned.Bool,
 		IsPermanentBan: user.IsPermanentBan.Bool,
 		BanReason:      user.BanReason.String,
@@ -179,7 +175,6 @@ func SearchUsersPaginatedHandler(c *gin.Context) {
 			ID:        user.ID.Bytes,
 			UserName:  user.UserName,
 			Email:     user.Email,
-			Role:      user.Role.String,
 			CreatedAt: user.CreatedAt.Time,
 			// Add other fields if needed
 		})
@@ -219,10 +214,6 @@ func UpdateUserByIDHandler(c *gin.Context) {
 	if req.UserName != nil {
 		params.UserName = pgtype.Text{String: *req.UserName, Valid: true}
 	}
-
-	if req.PhoneNumber != nil {
-		params.PhoneNumber = pgtype.Text{String: *req.PhoneNumber, Valid: true}
-	}
 	// Save changes
 	updatedUser, err := db.Q.UpdateUserProfile(c, params)
 	if err != nil {
@@ -235,8 +226,6 @@ func UpdateUserByIDHandler(c *gin.Context) {
 		ID:             updatedUser.ID.Bytes,
 		UserName:       updatedUser.UserName,
 		Email:          updatedUser.Email,
-		PhoneNumber:    updatedUser.PhoneNumber,
-		Role:           updatedUser.Role.String,
 		IsBanned:       updatedUser.IsBanned.Bool,
 		BanUntil:       &updatedUser.BanUntil.Time,
 		BanReason:      updatedUser.BanReason.String,
