@@ -79,7 +79,7 @@ func main() {
 		userGroup.PATCH("/user/ban/:id", middleware.AdminOnly(), handlers.BanUserByIDHandler)
 	}
 	// Balance routes (protected)
-	balanceGroup := r.Group("/api/balances")
+	balanceGroup := r.Group("/balances")
 	balanceGroup.Use(middleware.AuthMiddleware())
 	{
 		balanceGroup.GET("/", handlers.ListBalances)
@@ -103,7 +103,7 @@ func main() {
 	predictionGroup.Use(middleware.AuthMiddleware())
 	{
 		predictionGroup.POST("/place", handlers.PlacePrediction)
-		predictionGroup.GET("/result/:id", handlers.GetPredictionResult)
+		predictionGroup.GET("/result/:prediction_id", handlers.GetPredictionResult)
 		predictionGroup.GET("/active", handlers.GetActivePredictions)
 		predictionGroup.GET("/history", handlers.GetPredictionHistory)
 		predictionGroup.POST("/cancel/:id", handlers.CancelPrediction)

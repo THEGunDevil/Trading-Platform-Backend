@@ -3,7 +3,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -124,8 +123,8 @@ func PlacePrediction(c *gin.Context) {
 	}
 
 	// Schedule auto-resolution in background
-	go schedulePredictionResolution(prediction.ID, time.Duration(req.DurationSeconds)*time.Second)
-
+	// PlacePrediction — pass userIDPg through to the background job
+	go schedulePredictionResolution(prediction.ID, userIDPg, time.Duration(req.DurationSeconds)*time.Second)
 	resp := models.ToPredictionResponse(prediction)
 	service.WriteJSON(c, http.StatusCreated, resp)
 }
@@ -138,7 +137,7 @@ func GetPredictionResult(c *gin.Context) {
 		return
 	}
 
-	predictionID, err := service.ParseUUIDParam(c, "id")
+	predictionID, err := service.ParseUUIDParam(c, "prediction_id")
 	if err != nil {
 		service.WriteError(c, http.StatusBadRequest, "Invalid prediction ID")
 		return
@@ -295,13 +294,16 @@ func CancelPrediction(c *gin.Context) {
 }
 
 // schedulePredictionResolution runs in background goroutine
-func schedulePredictionResolution(predictionID pgtype.UUID, duration time.Duration) {
+// schedulePredictionResolution runs in background goroutine
+func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, duration time.Duration) {
 	time.Sleep(duration)
 
 	prediction, err := db.Q.GetPredictionByID(context.Background(), gen.GetPredictionByIDParams{
-		ID: predictionID,
+		ID:     predictionID,
+		UserID: userID,
 	})
 	if err != nil || prediction.Status != "active" {
+		log.Printf("resolution skipped for %v: err=%v status=%v", predictionID, err, prediction.Status)
 		return
 	}
 
@@ -313,11 +315,11 @@ func schedulePredictionResolution(predictionID pgtype.UUID, duration time.Durati
 	}
 	finalPriceNumeric, err := service.Float64ToNumeric(finalPrice)
 	if err != nil {
-		fmt.Errorf("invalid price: %w", err)
+		log.Printf("invalid price: %v", err)
+		return
 	}
 	startPrice := service.NumericToFloat64(prediction.StartPrice)
 
-	// Determine result
 	isWin := false
 	if prediction.Direction == "up" {
 		isWin = finalPrice > startPrice
@@ -330,30 +332,43 @@ func schedulePredictionResolution(predictionID pgtype.UUID, duration time.Durati
 		status = "won"
 	}
 
-	// Resolve prediction
 	resolved, err := db.Q.ResolvePrediction(context.Background(), gen.ResolvePredictionParams{
 		ID:         predictionID,
 		Status:     status,
 		FinalPrice: finalPriceNumeric,
 	})
-
 	if err != nil {
 		log.Printf("Failed to resolve prediction: %v", err)
 		return
 	}
 
-	// If won, credit payout to available balance
-	if status == "won" {
-		payoutFloat := service.NumericToFloat64(resolved.Payout)
-		payoutNumeric, _ := service.Float64ToNumeric(payoutFloat)
+	userUUID := service.PGTypeToUUID(resolved.UserID)
 
+	if status == "won" {
+		// Return the original stake to available...
+		if err := service.UnlockBalance(context.Background(), db.Q, userUUID, "USDT", prediction.Amount); err != nil {
+			log.Printf("Failed to unlock principal on win: %v", err)
+			return
+		}
+		// ...then credit only the profit on top (payout already includes principal)
+		profitNumeric := prediction.Amount // placeholder — see note below
 		_, err = db.Q.IncreaseAvailableBalance(context.Background(), gen.IncreaseAvailableBalanceParams{
 			UserID:    resolved.UserID,
 			Asset:     "USDT",
-			Available: payoutNumeric,
+			Available: resolved.Profit, // use the stored `profit` column directly, not payout - principal
 		})
 		if err != nil {
 			log.Printf("Failed to credit winnings: %v", err)
+		}
+	} else {
+		// Lost: stake is forfeited, never returned to available
+		_,err := db.Q.ForfeitLocked(context.Background(), gen.ForfeitLockedParams{
+			Amount: prediction.Amount,
+			UserID: userID,
+			Asset:  "USDT",
+		}); 
+		if err != nil {
+			log.Printf("Failed to forfeit locked funds on loss: %v", err)
 		}
 	}
 }

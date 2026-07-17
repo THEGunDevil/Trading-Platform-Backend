@@ -188,6 +188,14 @@ func UserIDFromContext(c *gin.Context) (uuid.UUID, bool) {
 	id, ok := val.(uuid.UUID)
 	return id, ok
 }
+func PredictionIDFromContext(c *gin.Context) (uuid.UUID, bool) {
+	val, exists := c.Get("predictionID")
+	if !exists {
+		return uuid.UUID{}, false
+	}
+	id, ok := val.(uuid.UUID)
+	return id, ok
+}
 
 // roleFromContext reads the role set by AuthMiddleware.
 func RoleFromContext(c *gin.Context) string {

@@ -46,3 +46,11 @@ UPDATE balances
 SET locked = locked - $3, updated_at = NOW()
 WHERE user_id = $1 AND asset = $2 AND locked >= $3
 RETURNING *;
+-- name: ForfeitLocked :one
+-- Clears locked funds WITHOUT crediting available — used when a bet is lost
+-- and the stake should not come back to the user.
+UPDATE balances
+SET locked = locked - sqlc.arg(amount),
+    updated_at = NOW()
+WHERE user_id = sqlc.arg(user_id) AND asset = sqlc.arg(asset) AND locked >= sqlc.arg(amount)
+RETURNING *;

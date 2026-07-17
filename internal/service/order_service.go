@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -15,16 +16,27 @@ import (
 
 var (
 	ErrInvalidOrderType = errors.New("limit orders require a price")
+	// ErrInsufficientBalance = errors.New("insufficient balance")
 )
 
-// OrderService handles order lifecycle operations with safe database transactions.
 type OrderService struct {
 	store *db.Store
 }
 
-// NewOrderService initializes a new OrderService with the DB store.
 func NewOrderService(store *db.Store) *OrderService {
 	return &OrderService{store: store}
+}
+
+// splitSymbol splits "BTCUSDT" into ("BTC", "USDT").
+// Extend knownQuotes if you support more quote assets.
+func splitSymbol(symbol string) (base, quote string, err error) {
+	knownQuotes := []string{"USDT", "USDC", "BUSD"}
+	for _, q := range knownQuotes {
+		if strings.HasSuffix(symbol, q) {
+			return strings.TrimSuffix(symbol, q), q, nil
+		}
+	}
+	return "", "", fmt.Errorf("unrecognized quote asset in symbol %s", symbol)
 }
 
 // PlaceOrder locks the required margin and creates the order atomically.
@@ -35,35 +47,53 @@ func (s *OrderService) PlaceOrder(ctx context.Context, userID uuid.UUID, req mod
 		return gen.Order{}, ErrInvalidOrderType
 	}
 
-	// TODO: replace with real margin/fee calculation logic — placeholder
-	// values below just wire the plumbing together for now.
-	marginAsset := "USDT"
-	marginAmount, err := StringToNumeric(req.Quantity)
+	base, quote, err := splitSymbol(req.Symbol)
+	if err != nil {
+		return gen.Order{}, fmt.Errorf("invalid symbol: %w", err)
+	}
+
+	quantityNumeric, err := StringToNumeric(req.Quantity)
 	if err != nil {
 		return gen.Order{}, fmt.Errorf("invalid quantity: %w", err)
 	}
+	quantityFloat := NumericToFloat64(quantityNumeric) // no error, matches prediction.go usage
+
+	var execPrice float64
+	var priceParam pgtype.Numeric
+
+	if req.OrderType == "market" {
+		execPrice, err = GetCurrentPrice(req.Symbol)
+		if err != nil {
+			return gen.Order{}, fmt.Errorf("failed to get current price: %w", err)
+		}
+		priceParam, err = Float64ToNumeric(execPrice)
+		if err != nil {
+			return gen.Order{}, fmt.Errorf("invalid price: %w", err)
+		}
+	} else {
+		priceParam, err = StringToNumeric(*req.Price)
+		if err != nil {
+			return gen.Order{}, fmt.Errorf("invalid price: %w", err)
+		}
+		execPrice = NumericToFloat64(priceParam)
+	}
+
+	if req.Leverage < 1 {
+		req.Leverage = 1
+	}
+	marginFloat := (execPrice * quantityFloat) / float64(req.Leverage)
+	marginAmount, err := Float64ToNumeric(marginFloat)
+	if err != nil {
+		return gen.Order{}, fmt.Errorf("invalid margin: %w", err)
+	}
+
 	fee := MustStringToNumeric("0")
 
 	var order gen.Order
 
-	// Using s.store.ExecTx instead of db.WithTx
 	err = s.store.ExecTx(ctx, func(q *gen.Queries) error {
-		if err := LockForOrder(ctx, q, userID, marginAsset, marginAmount); err != nil {
-			return err
-		}
-
-		var priceParam pgtype.Numeric
-		if req.Price != nil {
-			p, err := StringToNumeric(*req.Price)
-			if err != nil {
-				return fmt.Errorf("invalid price: %w", err)
-			}
-			priceParam = p
-		}
-
-		quantityParam, err := StringToNumeric(req.Quantity)
-		if err != nil {
-			return fmt.Errorf("invalid quantity: %w", err)
+		if err := LockForOrder(ctx, q, userID, quote, marginAmount); err != nil {
+			return err // already ErrInsufficientBalance — no need to wrap
 		}
 
 		created, err := q.CreateOrder(ctx, gen.CreateOrderParams{
@@ -73,15 +103,51 @@ func (s *OrderService) PlaceOrder(ctx context.Context, userID uuid.UUID, req mod
 			OrderType: req.OrderType,
 			Leverage:  req.Leverage,
 			Price:     priceParam,
-			Quantity:  quantityParam,
+			Quantity:  quantityNumeric,
 			Margin:    marginAmount,
 			Fee:       fee,
 		})
 		if err != nil {
 			return err
 		}
-
 		order = created
+
+		if req.OrderType == "market" {
+			filled, err := db.Q.FillOrder(ctx, gen.FillOrderParams{
+				ID: created.ID, UserID: UUIDToPGType(userID), Price: priceParam,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to fill order: %w", err)
+			}
+			order = filled
+
+			if _, err := q.CreateTrade(ctx, gen.CreateTradeParams{
+				OrderID: created.ID, UserID: UUIDToPGType(userID),
+				Symbol: req.Symbol, Price: priceParam, Quantity: quantityNumeric, Fee: fee,
+			}); err != nil {
+				return fmt.Errorf("failed to record trade: %w", err)
+			}
+
+			// Release locked margin, then credit whichever asset was received
+			if err := UnlockBalance(ctx, q, userID, quote, marginAmount); err != nil {
+				return fmt.Errorf("failed to release margin: %w", err)
+			}
+
+			if req.Side == "buy" {
+				if _, err := q.IncreaseAvailableBalance(ctx, gen.IncreaseAvailableBalanceParams{
+					UserID: UUIDToPGType(userID), Asset: base, Available: quantityNumeric,
+				}); err != nil {
+					return fmt.Errorf("failed to credit %s: %w", base, err)
+				}
+			} else {
+				if _, err := q.IncreaseAvailableBalance(ctx, gen.IncreaseAvailableBalanceParams{
+					UserID: UUIDToPGType(userID), Asset: quote, Available: marginAmount,
+				}); err != nil {
+					return fmt.Errorf("failed to credit %s: %w", quote, err)
+				}
+			}
+		}
+
 		return nil
 	})
 

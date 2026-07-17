@@ -42,15 +42,15 @@ CREATE TABLE predictions (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     coin_id VARCHAR(50) NOT NULL,
     symbol VARCHAR(20) NOT NULL,
-    amount DECIMAL(30,10) NOT NULL CHECK (amount > 0),
+    amount DECIMAL(30,4) NOT NULL CHECK (amount > 0),
     direction VARCHAR(4) NOT NULL CHECK (direction IN ('up', 'down')),
     duration_seconds INT NOT NULL CHECK (duration_seconds IN (10, 30, 60, 300)),
-    start_price DECIMAL(30,10) NOT NULL,
-    final_price DECIMAL(30,10),
+    start_price DECIMAL(30,4) NOT NULL,
+    final_price DECIMAL(30,4),
     payout_rate DECIMAL(5,4) NOT NULL DEFAULT 0.8000,
     status VARCHAR(10) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'won', 'lost', 'cancelled')),
-    profit DECIMAL(30,10) DEFAULT 0,
-    payout DECIMAL(30,10) DEFAULT 0,
+    profit DECIMAL(30,4) DEFAULT 0,
+    payout DECIMAL(30,4) DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ NOT NULL,
     resolved_at TIMESTAMPTZ
@@ -75,8 +75,8 @@ CREATE TABLE balances (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     asset TEXT NOT NULL,            -- e.g. "USDT", "BTC"
-    available NUMERIC(30, 10) NOT NULL DEFAULT 0 CHECK (available >= 0),
-    locked NUMERIC(30, 10) NOT NULL DEFAULT 0 CHECK (locked >= 0), -- reserved by open orders
+    available NUMERIC(30, 4) NOT NULL DEFAULT 0 CHECK (available >= 0),
+    locked NUMERIC(30, 4) NOT NULL DEFAULT 0 CHECK (locked >= 0), -- reserved by open orders
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(user_id, asset)
 );
@@ -99,7 +99,7 @@ CREATE TABLE deposits (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     asset TEXT NOT NULL,
     network TEXT NOT NULL,
-    amount NUMERIC(30, 10) NOT NULL CHECK (amount > 0),
+    amount NUMERIC(30, 4) NOT NULL CHECK (amount > 0),
     tx_hash TEXT,
     confirmations INT NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'failed')),
@@ -115,8 +115,8 @@ CREATE TABLE withdrawals (
     asset TEXT NOT NULL,
     network TEXT NOT NULL,
     destination_address TEXT NOT NULL,
-    amount NUMERIC(30, 10) NOT NULL CHECK (amount > 0),
-    fee NUMERIC(30, 10) NOT NULL DEFAULT 0 CHECK (fee >= 0),
+    amount NUMERIC(30, 4) NOT NULL CHECK (amount > 0),
+    fee NUMERIC(30, 4) NOT NULL DEFAULT 0 CHECK (fee >= 0),
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'processing', 'completed', 'rejected', 'failed')),
     tx_hash TEXT,
@@ -133,10 +133,10 @@ CREATE TABLE orders (
     side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
     order_type TEXT NOT NULL CHECK (order_type IN ('market', 'limit')),
     leverage INT NOT NULL DEFAULT 1 CHECK (leverage >= 1),
-    price NUMERIC(30, 10),          -- null for market orders until filled
-    quantity NUMERIC(30, 10) NOT NULL CHECK (quantity > 0),
-    margin NUMERIC(30, 10) NOT NULL,
-    fee NUMERIC(30, 10) NOT NULL DEFAULT 0,
+    price NUMERIC(30, 4),          -- null for market orders until filled
+    quantity NUMERIC(30, 4) NOT NULL CHECK (quantity > 0),
+    margin NUMERIC(30, 4) NOT NULL,
+    fee NUMERIC(30, 4) NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'open'
         CHECK (status IN ('open', 'filled', 'cancelled', 'rejected')),
     created_at TIMESTAMP DEFAULT NOW(),
@@ -151,9 +151,9 @@ CREATE TABLE trades (
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     symbol TEXT NOT NULL,
-    price NUMERIC(30, 10) NOT NULL,
-    quantity NUMERIC(30, 10) NOT NULL CHECK (quantity > 0),
-    fee NUMERIC(30, 10) NOT NULL DEFAULT 0,
+    price NUMERIC(30, 4) NOT NULL,
+    quantity NUMERIC(30, 4) NOT NULL CHECK (quantity > 0),
+    fee NUMERIC(30, 4) NOT NULL DEFAULT 0,
     executed_at TIMESTAMP DEFAULT NOW()
 );
 CREATE INDEX idx_trades_user_id ON trades(user_id);

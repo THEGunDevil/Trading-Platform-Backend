@@ -68,6 +68,36 @@ func (q *Queries) DecreaseAvailableBalance(ctx context.Context, arg DecreaseAvai
 	return i, err
 }
 
+const forfeitLocked = `-- name: ForfeitLocked :one
+UPDATE balances
+SET locked = locked - $1,
+    updated_at = NOW()
+WHERE user_id = $2 AND asset = $3 AND locked >= $1
+RETURNING id, user_id, asset, available, locked, updated_at
+`
+
+type ForfeitLockedParams struct {
+	Amount pgtype.Numeric `json:"amount"`
+	UserID pgtype.UUID    `json:"user_id"`
+	Asset  string         `json:"asset"`
+}
+
+// Clears locked funds WITHOUT crediting available — used when a bet is lost
+// and the stake should not come back to the user.
+func (q *Queries) ForfeitLocked(ctx context.Context, arg ForfeitLockedParams) (Balance, error) {
+	row := q.db.QueryRow(ctx, forfeitLocked, arg.Amount, arg.UserID, arg.Asset)
+	var i Balance
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Asset,
+		&i.Available,
+		&i.Locked,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getBalance = `-- name: GetBalance :one
 SELECT id, user_id, asset, available, locked, updated_at FROM balances WHERE user_id = $1 AND asset = $2
 `
