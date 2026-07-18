@@ -92,6 +92,40 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 	return i, err
 }
 
+const fillOrder = `-- name: FillOrder :one
+UPDATE orders
+SET status = 'filled', price = $3, filled_at = NOW()
+WHERE id = $1 AND user_id = $2 AND status = 'open'
+RETURNING id, user_id, symbol, side, order_type, leverage, price, quantity, margin, fee, status, created_at, filled_at
+`
+
+type FillOrderParams struct {
+	ID     pgtype.UUID    `json:"id"`
+	UserID pgtype.UUID    `json:"user_id"`
+	Price  pgtype.Numeric `json:"price"`
+}
+
+func (q *Queries) FillOrder(ctx context.Context, arg FillOrderParams) (Order, error) {
+	row := q.db.QueryRow(ctx, fillOrder, arg.ID, arg.UserID, arg.Price)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Symbol,
+		&i.Side,
+		&i.OrderType,
+		&i.Leverage,
+		&i.Price,
+		&i.Quantity,
+		&i.Margin,
+		&i.Fee,
+		&i.Status,
+		&i.CreatedAt,
+		&i.FilledAt,
+	)
+	return i, err
+}
+
 const getOrderByID = `-- name: GetOrderByID :one
 SELECT id, user_id, symbol, side, order_type, leverage, price, quantity, margin, fee, status, created_at, filled_at FROM orders WHERE id = $1
 `

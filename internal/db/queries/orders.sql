@@ -28,3 +28,9 @@ RETURNING *;
 -- name: RejectOrder :one
 UPDATE orders SET status = 'rejected' WHERE id = $1
 RETURNING *;
+
+-- name: FillOrder :one
+UPDATE orders
+SET status = 'filled', price = $3, filled_at = NOW()
+WHERE id = $1 AND user_id = $2 AND status = 'open'
+RETURNING *;

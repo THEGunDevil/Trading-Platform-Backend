@@ -328,8 +328,8 @@ UPDATE predictions
 SET 
     status = $2,
     final_price = $3,
-    profit = CASE WHEN $2 = 'won' THEN amount * (payout_rate / 100) ELSE 0 END,
-    payout = CASE WHEN $2 = 'won' THEN amount + (amount * payout_rate / 100) ELSE 0 END,
+    profit = CASE WHEN $2 = 'won' THEN amount * payout_rate ELSE 0 END,
+    payout = CASE WHEN $2 = 'won' THEN amount + (amount * payout_rate) ELSE 0 END,
     resolved_at = NOW()
 WHERE id = $1 AND status = 'active' 
 RETURNING id, user_id, coin_id, symbol, amount, direction, duration_seconds, start_price, final_price, payout_rate, status, profit, payout, created_at, expires_at, resolved_at

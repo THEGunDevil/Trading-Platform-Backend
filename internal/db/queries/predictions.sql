@@ -34,8 +34,8 @@ UPDATE predictions
 SET 
     status = $2,
     final_price = $3,
-    profit = CASE WHEN $2 = 'won' THEN amount * (payout_rate / 100) ELSE 0 END,
-    payout = CASE WHEN $2 = 'won' THEN amount + (amount * payout_rate / 100) ELSE 0 END,
+    profit = CASE WHEN $2 = 'won' THEN amount * payout_rate ELSE 0 END,
+    payout = CASE WHEN $2 = 'won' THEN amount + (amount * payout_rate) ELSE 0 END,
     resolved_at = NOW()
 WHERE id = $1 AND status = 'active' 
 RETURNING *;

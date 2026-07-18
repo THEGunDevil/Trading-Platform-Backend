@@ -137,7 +137,7 @@ func GetPredictionResult(c *gin.Context) {
 		return
 	}
 
-	predictionID, err := service.ParseUUIDParam(c, "prediction_id")
+	predictionID, err := service.ParseUUIDParam(c, "id")
 	if err != nil {
 		service.WriteError(c, http.StatusBadRequest, "Invalid prediction ID")
 		return
@@ -351,7 +351,6 @@ func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, 
 			return
 		}
 		// ...then credit only the profit on top (payout already includes principal)
-		profitNumeric := prediction.Amount // placeholder — see note below
 		_, err = db.Q.IncreaseAvailableBalance(context.Background(), gen.IncreaseAvailableBalanceParams{
 			UserID:    resolved.UserID,
 			Asset:     "USDT",

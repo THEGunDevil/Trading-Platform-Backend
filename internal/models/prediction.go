@@ -50,20 +50,23 @@ type PredictionHistory struct {
 	Page        int                  `json:"page"`
 	Limit       int                  `json:"limit"`
 }
-
+// internal/models/prediction.go
 func convertNumericToFloat64(n pgtype.Numeric) float64 {
-	if !n.Valid {
+	if !n.Valid || n.Int == nil {
 		return 0
 	}
-
-	// Convert big.Int to float64
+	
+	// Create a big.Float from the Int value
 	f := new(big.Float).SetInt(n.Int)
+	
+	// Apply the exponent
+	// n.Exp is the number of digits after the decimal point
+	// Example: 12345 with Exp=-4 means 1.2345
 	if n.Exp != 0 {
-		// Apply exponent
-		exp := new(big.Float).SetFloat64(math.Pow10(int(-n.Exp)))
-		f.Mul(f, exp)
+		divisor := new(big.Float).SetFloat64(math.Pow10(int(-n.Exp)))
+		f.Quo(f, divisor)
 	}
-
+	
 	result, _ := f.Float64()
 	return result
 }
