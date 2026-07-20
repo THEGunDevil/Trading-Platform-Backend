@@ -62,15 +62,18 @@ func (s *BalanceService) CreditDeposit(ctx context.Context, depositID uuid.UUID,
 
 // LockForOrder moves funds available -> locked.
 func LockForOrder(ctx context.Context, q *gen.Queries, userID uuid.UUID, asset string, amount pgtype.Numeric) error {
-	_, err := q.LockBalance(ctx, gen.LockBalanceParams{
-		UserID:    UUIDToPGType(userID),
-		Asset:     asset,
-		Available: amount,
-	})
-	if err != nil {
-		return ErrInsufficientBalance 
-	}
-	return nil
+    rows, err := q.LockBalance(ctx, gen.LockBalanceParams{
+        UserID:  UUIDToPGType(userID),
+        Asset:   asset,
+        Amount:  amount,
+    })
+    if err != nil {
+        return err
+    }
+    if rows == 0 {
+        return ErrInsufficientBalance
+    }
+    return nil
 }
 
 // UnlockBalance unlocks the reserved margin.

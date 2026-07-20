@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -14,7 +13,6 @@ import (
 )
 
 // --- UUID ---
-var ErrInsufficientBalance = errors.New("insufficient balance")
 
 func UUIDToPGType(u uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{
@@ -177,6 +175,7 @@ func SafeInt(value interface{}) int {
 		return 0
 	}
 }
+
 // userIDFromContext reads the userID set by AuthMiddleware via c.Set("userID", userUUID).
 // ok=false means this handler was reached without going through AuthMiddleware first —
 // that's a routing setup bug, not a normal unauthenticated request.
@@ -255,4 +254,10 @@ func NumericToFloat64(n pgtype.Numeric) float64 {
 	}
 	result, _ := f.Float64()
 	return result
+}
+
+// NegateNumeric returns the negated value (n * -1)
+func NegateNumeric(n pgtype.Numeric) (pgtype.Numeric, error) {
+	f := NumericToFloat64(n)
+	return Float64ToNumeric(-f)
 }

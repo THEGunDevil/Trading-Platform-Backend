@@ -65,51 +65,51 @@ func main() {
 	}
 	// Auth routes (public)
 	authGroup := r.Group("/auth")
-authGroup.Use(middleware.RateLimiter())
-{
-    authGroup.POST("/register", handlers.RegisterHandler)
-    authGroup.POST("/signin", handlers.LoginHandler)
-    authGroup.POST("/refresh", handlers.RefreshHandler)
-    authGroup.POST("/logout", handlers.LogoutHandler)
-}
+	authGroup.Use(middleware.RateLimiter())
+	{
+		authGroup.POST("/register", handlers.RegisterHandler)
+		authGroup.POST("/signin", handlers.LoginHandler)
+		authGroup.POST("/refresh", handlers.RefreshHandler)
+		authGroup.POST("/logout", handlers.LogoutHandler)
+	}
 
-// Balance routes — no rate limiter, polled frequently
-balanceGroup := r.Group("/balances")
-balanceGroup.Use(middleware.AuthMiddleware())
-{
-    balanceGroup.GET("/", handlers.ListBalances)
-    balanceGroup.GET("/:asset", handlers.GetBalance)
-}
+	// Balance routes — no rate limiter, polled frequently
+	balanceGroup := r.Group("/balances")
+	balanceGroup.Use(middleware.AuthMiddleware())
+	{
+		balanceGroup.GET("/", handlers.ListBalances)
+		balanceGroup.GET("/:asset", handlers.GetBalance)
+	}
 
-// Prediction routes — no limiter on polling routes
-predictionGroup := r.Group("/predictions")
-predictionGroup.Use(middleware.AuthMiddleware())
-{
-    predictionGroup.POST("/place", middleware.RateLimiter(), handlers.PlacePrediction)
-    predictionGroup.GET("/active", handlers.GetActivePredictions)       // polled
-    predictionGroup.GET("/result/:id", handlers.GetPredictionResult)    // polled
-    predictionGroup.GET("/history", middleware.RateLimiter(), handlers.GetPredictionHistory)
-    predictionGroup.POST("/cancel/:id", middleware.RateLimiter(), handlers.CancelPrediction)
-}
+	// Prediction routes — no limiter on polling routes
+	predictionGroup := r.Group("/predictions")
+	predictionGroup.Use(middleware.AuthMiddleware())
+	{
+		predictionGroup.POST("/place", middleware.RateLimiter(), handlers.PlacePrediction)
+		predictionGroup.GET("/active", handlers.GetActivePredictions)    // polled
+		predictionGroup.GET("/result/:id", handlers.GetPredictionResult) // polled
+		predictionGroup.GET("/history", middleware.RateLimiter(), handlers.GetPredictionHistory)
+		predictionGroup.POST("/cancel/:id", middleware.RateLimiter(), handlers.CancelPrediction)
+	}
 
-// User routes — rate limited
-userGroup := r.Group("/users")
-userGroup.Use(middleware.AuthMiddleware(), middleware.RateLimiter())
-{
-    userGroup.GET("/", middleware.AdminOnly(), handlers.GetUsersHandler)
-    userGroup.GET("/user/email", middleware.AdminOnly(), handlers.SearchUsersPaginatedHandler)
-    userGroup.GET("/user/:id", handlers.GetUserByIDHandler)
-    userGroup.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
-    userGroup.PATCH("/user/ban/:id", middleware.AdminOnly(), handlers.BanUserByIDHandler)
-}
+	// User routes — rate limited
+	userGroup := r.Group("/users")
+	userGroup.Use(middleware.AuthMiddleware(), middleware.RateLimiter())
+	{
+		userGroup.GET("/", middleware.AdminOnly(), handlers.GetUsersHandler)
+		userGroup.GET("/user/email", middleware.AdminOnly(), handlers.SearchUsersPaginatedHandler)
+		userGroup.GET("/user/:id", handlers.GetUserByIDHandler)
+		userGroup.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
+		userGroup.PATCH("/user/ban/:id", middleware.AdminOnly(), handlers.BanUserByIDHandler)
+	}
 
-// Order routes — rate limited
-orderGroup := r.Group("/api/orders")
-orderGroup.Use(middleware.AuthMiddleware(), middleware.RateLimiter())
-{
-    orderGroup.POST("/", orderHandler.PlaceOrder)
-    orderGroup.DELETE("/:id", orderHandler.CancelOrder)
-}
+	// Order routes — rate limited
+	orderGroup := r.Group("/orders")
+	orderGroup.Use(middleware.AuthMiddleware(), middleware.RateLimiter())
+	{
+		orderGroup.POST("", orderHandler.PlaceOrder)
+		orderGroup.DELETE("/:id", orderHandler.CancelOrder)
+	}
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

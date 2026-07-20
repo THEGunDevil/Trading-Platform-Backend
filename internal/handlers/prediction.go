@@ -83,9 +83,9 @@ func PlacePrediction(c *gin.Context) {
 	}
 
 	_, err = db.Q.LockBalance(c.Request.Context(), gen.LockBalanceParams{
-		UserID:    userIDPg,
-		Asset:     "USDT",
-		Available: amountNumeric,
+		UserID: userIDPg,
+		Asset:  "USDT",
+		Amount: amountNumeric,
 	})
 	if err != nil {
 		log.Printf("Failed to lock balance: %v", err)
@@ -361,11 +361,11 @@ func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, 
 		}
 	} else {
 		// Lost: stake is forfeited, never returned to available
-		_,err := db.Q.ForfeitLocked(context.Background(), gen.ForfeitLockedParams{
+		_, err := db.Q.ForfeitLocked(context.Background(), gen.ForfeitLockedParams{
 			Amount: prediction.Amount,
 			UserID: userID,
 			Asset:  "USDT",
-		}); 
+		})
 		if err != nil {
 			log.Printf("Failed to forfeit locked funds on loss: %v", err)
 		}

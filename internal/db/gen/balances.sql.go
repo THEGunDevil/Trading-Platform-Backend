@@ -180,32 +180,27 @@ func (q *Queries) ListBalances(ctx context.Context, userID pgtype.UUID) ([]Balan
 	return items, nil
 }
 
-const lockBalance = `-- name: LockBalance :one
+const lockBalance = `-- name: LockBalance :execrows
 UPDATE balances
-SET available = available - $3, locked = locked + $3, updated_at = NOW()
-WHERE user_id = $1 AND asset = $2 AND available >= $3
-RETURNING id, user_id, asset, available, locked, updated_at
+SET available = available - $1,
+    locked = locked + $1
+WHERE user_id = $2
+  AND asset = $3
+  AND available >= $1
 `
 
 type LockBalanceParams struct {
-	UserID    pgtype.UUID    `json:"user_id"`
-	Asset     string         `json:"asset"`
-	Available pgtype.Numeric `json:"available"`
+	Amount pgtype.Numeric `json:"amount"`
+	UserID pgtype.UUID    `json:"user_id"`
+	Asset  string         `json:"asset"`
 }
 
-// Moves funds from available -> locked (e.g. placing a limit order)
-func (q *Queries) LockBalance(ctx context.Context, arg LockBalanceParams) (Balance, error) {
-	row := q.db.QueryRow(ctx, lockBalance, arg.UserID, arg.Asset, arg.Available)
-	var i Balance
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Asset,
-		&i.Available,
-		&i.Locked,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) LockBalance(ctx context.Context, arg LockBalanceParams) (int64, error) {
+	result, err := q.db.Exec(ctx, lockBalance, arg.Amount, arg.UserID, arg.Asset)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const unlockBalance = `-- name: UnlockBalance :one

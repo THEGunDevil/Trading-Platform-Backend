@@ -26,12 +26,13 @@ SET available = available - $3, updated_at = NOW()
 WHERE user_id = $1 AND asset = $2 AND available >= $3
 RETURNING *;
 
--- name: LockBalance :one
--- Moves funds from available -> locked (e.g. placing a limit order)
+-- name: LockBalance :execrows
 UPDATE balances
-SET available = available - $3, locked = locked + $3, updated_at = NOW()
-WHERE user_id = $1 AND asset = $2 AND available >= $3
-RETURNING *;
+SET available = available - sqlc.arg(amount),
+    locked = locked + sqlc.arg(amount)
+WHERE user_id = sqlc.arg(user_id)
+  AND asset = sqlc.arg(asset)
+  AND available >= sqlc.arg(amount);
 
 -- name: UnlockBalance :one
 -- Moves funds from locked -> available (e.g. order cancelled)
