@@ -36,3 +36,14 @@ ORDER BY ss.created_at DESC;
 
 -- name: GetBalancesForUsers :many
 SELECT user_id, asset, available, locked FROM balances WHERE user_id = ANY($1::uuid[]);
+
+
+-- name: ListAgentUsersPaginated :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
+FROM users
+WHERE role = 'agent'
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountAgentUsers :one
+SELECT COUNT(*) FROM users WHERE role = 'agent';

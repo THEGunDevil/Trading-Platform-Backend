@@ -183,7 +183,11 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		users.GET("/user/:id", handlers.GetUserByIDHandler)
 		users.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
 	}
+	withdrawalSvc := service.NewWithdrawalService(store)
 
+	// User withdrawal request
+	userWithdrawalHandler := handlers.NewWithdrawalHandler(withdrawalSvc)
+	r.POST("/withdrawals", middleware.AuthMiddleware(), middleware.RateLimiter(),userWithdrawalHandler.RequestWithdrawal)
 	// Orders — authenticated, rate limited
 	orders := r.Group("/orders")
 	orders.Use(middleware.AuthMiddleware(), middleware.RateLimiter())
@@ -202,7 +206,9 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 
 		// User management
 		adminGroup.GET("/users", adminHandler.GetUsersHandler)
-		adminGroup.GET("/users/search", adminHandler.SearchUsers)
+		adminGroup.GET("/users/agents", adminHandler.GetAgentUsersHandler)
+		adminGroup.GET("/users/banned", adminHandler.GetBannedUsersHandler)
+		adminGroup.GET("/users/search", adminHandler.SearchUsersHandler)
 		adminGroup.PATCH("/users/ban/:id", adminHandler.BanUser)
 		adminGroup.PATCH("/users/unban/:id", adminHandler.UnbanUser)
 		adminGroup.PATCH("/users/role/:id", adminHandler.UpdateUserRole)

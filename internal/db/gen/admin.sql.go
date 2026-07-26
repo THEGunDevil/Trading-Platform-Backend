@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAgentUsers = `-- name: CountAgentUsers :one
+SELECT COUNT(*) FROM users WHERE role = 'agent'
+`
+
+func (q *Queries) CountAgentUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAgentUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getActiveSupportSessions = `-- name: GetActiveSupportSessions :many
 SELECT 
     ss.id, u.user_name, ss.subject, ss.status, 
@@ -220,6 +231,63 @@ func (q *Queries) GetRecentTrades(ctx context.Context) ([]GetRecentTradesRow, er
 			&i.Quantity,
 			&i.Fee,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAgentUsersPaginated = `-- name: ListAgentUsersPaginated :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
+FROM users
+WHERE role = 'agent'
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListAgentUsersPaginatedParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListAgentUsersPaginatedRow struct {
+	ID             pgtype.UUID      `json:"id"`
+	UserName       string           `json:"user_name"`
+	Email          string           `json:"email"`
+	Role           pgtype.Text      `json:"role"`
+	IsBanned       pgtype.Bool      `json:"is_banned"`
+	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`
+	BanReason      pgtype.Text      `json:"ban_reason"`
+	BanUntil       pgtype.Timestamp `json:"ban_until"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	TokenVersion   int32            `json:"token_version"`
+}
+
+func (q *Queries) ListAgentUsersPaginated(ctx context.Context, arg ListAgentUsersPaginatedParams) ([]ListAgentUsersPaginatedRow, error) {
+	rows, err := q.db.Query(ctx, listAgentUsersPaginated, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAgentUsersPaginatedRow
+	for rows.Next() {
+		var i ListAgentUsersPaginatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserName,
+			&i.Email,
+			&i.Role,
+			&i.IsBanned,
+			&i.IsPermanentBan,
+			&i.BanReason,
+			&i.BanUntil,
+			&i.CreatedAt,
+			&i.TokenVersion,
 		); err != nil {
 			return nil, err
 		}

@@ -34,6 +34,17 @@ func (q *Queries) BanUser(ctx context.Context, arg BanUserParams) error {
 	return err
 }
 
+const countBannedUsers = `-- name: CountBannedUsers :one
+SELECT COUNT(*) FROM users WHERE is_banned = TRUE
+`
+
+func (q *Queries) CountBannedUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countBannedUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT COUNT(*) FROM users
 `
@@ -152,6 +163,63 @@ func (q *Queries) IncrementTokenVersion(ctx context.Context, id pgtype.UUID) err
 	return err
 }
 
+const listBannedUsersPaginated = `-- name: ListBannedUsersPaginated :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
+FROM users
+WHERE is_banned = TRUE
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListBannedUsersPaginatedParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListBannedUsersPaginatedRow struct {
+	ID             pgtype.UUID      `json:"id"`
+	UserName       string           `json:"user_name"`
+	Email          string           `json:"email"`
+	Role           pgtype.Text      `json:"role"`
+	IsBanned       pgtype.Bool      `json:"is_banned"`
+	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`
+	BanReason      pgtype.Text      `json:"ban_reason"`
+	BanUntil       pgtype.Timestamp `json:"ban_until"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	TokenVersion   int32            `json:"token_version"`
+}
+
+func (q *Queries) ListBannedUsersPaginated(ctx context.Context, arg ListBannedUsersPaginatedParams) ([]ListBannedUsersPaginatedRow, error) {
+	rows, err := q.db.Query(ctx, listBannedUsersPaginated, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBannedUsersPaginatedRow
+	for rows.Next() {
+		var i ListBannedUsersPaginatedRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserName,
+			&i.Email,
+			&i.Role,
+			&i.IsBanned,
+			&i.IsPermanentBan,
+			&i.BanReason,
+			&i.BanUntil,
+			&i.CreatedAt,
+			&i.TokenVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
@@ -238,56 +306,55 @@ func (q *Queries) ListUsersPaginated(ctx context.Context, arg ListUsersPaginated
 	return items, nil
 }
 
-const searchUsersByEmailWithPagination = `-- name: SearchUsersByEmailWithPagination :many
-SELECT
-    id,
-    user_name,
-    email,
-    role,
-    created_at,
-    updated_at
+const searchUsers = `-- name: SearchUsers :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
 FROM users
-WHERE
-    (CASE 
-        WHEN $1 = '' THEN TRUE
-        ELSE email ILIKE '%' || $1 || '%'
-    END)
-ORDER BY email
-LIMIT $2
-OFFSET $3
+WHERE user_name ILIKE '%' || $1 || '%'
+   OR email ILIKE '%' || $1 || '%'
+   OR role ILIKE '%' || $1 || '%'
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
 `
 
-type SearchUsersByEmailWithPaginationParams struct {
-	Column1 interface{} `json:"column_1"`
+type SearchUsersParams struct {
+	Column1 pgtype.Text `json:"column_1"`
 	Limit   int32       `json:"limit"`
 	Offset  int32       `json:"offset"`
 }
 
-type SearchUsersByEmailWithPaginationRow struct {
-	ID        pgtype.UUID      `json:"id"`
-	UserName  string           `json:"user_name"`
-	Email     string           `json:"email"`
-	Role      pgtype.Text      `json:"role"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-	UpdatedAt pgtype.Timestamp `json:"updated_at"`
+type SearchUsersRow struct {
+	ID             pgtype.UUID      `json:"id"`
+	UserName       string           `json:"user_name"`
+	Email          string           `json:"email"`
+	Role           pgtype.Text      `json:"role"`
+	IsBanned       pgtype.Bool      `json:"is_banned"`
+	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`
+	BanReason      pgtype.Text      `json:"ban_reason"`
+	BanUntil       pgtype.Timestamp `json:"ban_until"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	TokenVersion   int32            `json:"token_version"`
 }
 
-func (q *Queries) SearchUsersByEmailWithPagination(ctx context.Context, arg SearchUsersByEmailWithPaginationParams) ([]SearchUsersByEmailWithPaginationRow, error) {
-	rows, err := q.db.Query(ctx, searchUsersByEmailWithPagination, arg.Column1, arg.Limit, arg.Offset)
+func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error) {
+	rows, err := q.db.Query(ctx, searchUsers, arg.Column1, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SearchUsersByEmailWithPaginationRow
+	var items []SearchUsersRow
 	for rows.Next() {
-		var i SearchUsersByEmailWithPaginationRow
+		var i SearchUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserName,
 			&i.Email,
 			&i.Role,
+			&i.IsBanned,
+			&i.IsPermanentBan,
+			&i.BanReason,
+			&i.BanUntil,
 			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.TokenVersion,
 		); err != nil {
 			return nil, err
 		}

@@ -7,10 +7,11 @@ import (
 )
 
 type CreateWithdrawalRequest struct {
-	Asset              string `json:"asset" validate:"required"`
-	Network            string `json:"network" validate:"required"`
-	DestinationAddress string `json:"destination_address" validate:"required"`
-	Amount             string `json:"amount" validate:"required"`
+    Asset              string `json:"asset" binding:"required"`
+    Network            string `json:"network" binding:"required"`
+    DestinationAddress string `json:"destination_address" binding:"required"`
+    Amount             string `json:"amount" binding:"required"` // decimal string
+    Fee                string `json:"fee" binding:"required"`
 }
 
 type Withdrawal struct {

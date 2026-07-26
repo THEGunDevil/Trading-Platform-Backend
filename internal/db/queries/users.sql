@@ -52,23 +52,14 @@ WHERE
         WHEN $1 = '' THEN TRUE
         ELSE email ILIKE '%' || $1 || '%'
     END);
--- name: SearchUsersByEmailWithPagination :many
-SELECT
-    id,
-    user_name,
-    email,
-    role,
-    created_at,
-    updated_at
+-- name: SearchUsers :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
 FROM users
-WHERE
-    (CASE 
-        WHEN $1 = '' THEN TRUE
-        ELSE email ILIKE '%' || $1 || '%'
-    END)
-ORDER BY email
-LIMIT $2
-OFFSET $3;
+WHERE user_name ILIKE '%' || $1 || '%'
+   OR email ILIKE '%' || $1 || '%'
+   OR role ILIKE '%' || $1 || '%'
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
 
 -- name: CountUsers :one
 SELECT COUNT(*) FROM users;
@@ -76,3 +67,13 @@ SELECT COUNT(*) FROM users;
 SELECT * FROM users
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
+
+-- name: ListBannedUsersPaginated :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
+FROM users
+WHERE is_banned = TRUE
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountBannedUsers :one
+SELECT COUNT(*) FROM users WHERE is_banned = TRUE;
