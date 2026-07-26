@@ -48,4 +48,3 @@ func LoadConfig() Config {
 		LOCALDBURL: localDbURL,
 	}
 }
-

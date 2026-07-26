@@ -126,8 +126,50 @@ func (q *Queries) FillOrder(ctx context.Context, arg FillOrderParams) (Order, er
 	return i, err
 }
 
+const getOpenLimitOrders = `-- name: GetOpenLimitOrders :many
+SELECT id, user_id, symbol, side, order_type, leverage, price, quantity, margin, fee, status, created_at, filled_at FROM orders 
+WHERE order_type = 'limit' AND status = 'open' 
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetOpenLimitOrders(ctx context.Context) ([]Order, error) {
+	rows, err := q.db.Query(ctx, getOpenLimitOrders)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Symbol,
+			&i.Side,
+			&i.OrderType,
+			&i.Leverage,
+			&i.Price,
+			&i.Quantity,
+			&i.Margin,
+			&i.Fee,
+			&i.Status,
+			&i.CreatedAt,
+			&i.FilledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getOrderByID = `-- name: GetOrderByID :one
-SELECT id, user_id, symbol, side, order_type, leverage, price, quantity, margin, fee, status, created_at, filled_at FROM orders WHERE id = $1
+SELECT id, user_id, symbol, side, order_type, leverage, price, quantity, margin, fee, status, created_at, filled_at FROM orders 
+WHERE id = $1 
+FOR UPDATE
 `
 
 func (q *Queries) GetOrderByID(ctx context.Context, id pgtype.UUID) (Order, error) {

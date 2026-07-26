@@ -15,7 +15,7 @@ type Client struct {
 var (
 	clients = make(map[string]*Client)
 	mutex   sync.Mutex
-	maxReq  = 100      // max requests per window
+	maxReq  = 100             // max requests per window
 	window  = 1 * time.Minute // time window
 )
 

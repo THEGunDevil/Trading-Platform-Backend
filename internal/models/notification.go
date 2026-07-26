@@ -14,12 +14,12 @@ type Notification struct {
 	UserName          string          `json:"user_name,omitempty"` // optional
 	ObjectID          *uuid.UUID      `json:"object_id,omitempty"` // related object, optional
 	ObjectTitle       string          `json:"object_title,omitempty"`
-	Type              string          `json:"type"`                 // e.g., BOOK_AVAILABLE, REMINDER
-	NotificationTitle string          `json:"notification_title"`   // short title for UI
-	Message           string          `json:"message"`              // full message
-	Metadata          json.RawMessage `json:"metadata,omitempty"`   // optional JSONB data
-	IsRead            bool            `json:"is_read"`              // read/unread status
-	CreatedAt         time.Time       `json:"created_at"`           // creation timestamp
+	Type              string          `json:"type"`               // e.g., BOOK_AVAILABLE, REMINDER
+	NotificationTitle string          `json:"notification_title"` // short title for UI
+	Message           string          `json:"message"`            // full message
+	Metadata          json.RawMessage `json:"metadata,omitempty"` // optional JSONB data
+	IsRead            bool            `json:"is_read"`            // read/unread status
+	CreatedAt         time.Time       `json:"created_at"`         // creation timestamp
 }
 
 // SendNotificationRequest is used to create/send a new notification/event

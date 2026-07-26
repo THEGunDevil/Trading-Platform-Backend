@@ -4,7 +4,9 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'open')
 RETURNING *;
 
 -- name: GetOrderByID :one
-SELECT * FROM orders WHERE id = $1;
+SELECT * FROM orders 
+WHERE id = $1 
+FOR UPDATE;
 
 -- name: ListUserOrders :many
 SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
@@ -34,3 +36,8 @@ UPDATE orders
 SET status = 'filled', price = $3, filled_at = NOW()
 WHERE id = $1 AND user_id = $2 AND status = 'open'
 RETURNING *;
+
+-- name: GetOpenLimitOrders :many
+SELECT * FROM orders 
+WHERE order_type = 'limit' AND status = 'open' 
+ORDER BY created_at ASC;

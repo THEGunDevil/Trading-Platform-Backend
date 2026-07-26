@@ -1,3 +1,5 @@
+-- internal/db/queries/notifications.sql
+
 -- name: CreateEvent :one
 INSERT INTO events (object_id, object_title, type, title, message, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -18,11 +20,3 @@ LIMIT $2 OFFSET $3;
 
 -- name: CountUnreadNotifications :one
 SELECT COUNT(*) FROM user_notification_status WHERE user_id = $1 AND is_read = false;
-
--- name: MarkNotificationRead :exec
-UPDATE user_notification_status SET is_read = true, read_at = NOW()
-WHERE user_id = $1 AND event_id = $2;
-
--- name: MarkAllNotificationsRead :exec
-UPDATE user_notification_status SET is_read = true, read_at = NOW()
-WHERE user_id = $1 AND is_read = false;

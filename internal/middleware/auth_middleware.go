@@ -20,7 +20,7 @@ import (
 // template Gin matched — NOT the literal request URL — so entries here
 // must exactly match how the route is registered below in main.go.
 var allowedPathsForBannedUsers = map[string]bool{
-	"/users/user": true,
+	"/users/user":   true,
 	"/contact/send": true,
 }
 

@@ -10,12 +10,11 @@ import (
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
 )
 
-// OrderHandler holds dependencies for order-related HTTP endpoints.
 type OrderHandler struct {
 	orderSvc *service.OrderService
+	// engine is no longer needed here; it's used internally by the service
 }
 
-// NewOrderHandler creates a new OrderHandler with the injected service.
 func NewOrderHandler(orderSvc *service.OrderService) *OrderHandler {
 	return &OrderHandler{orderSvc: orderSvc}
 }
@@ -34,7 +33,6 @@ func (h *OrderHandler) PlaceOrder(c *gin.Context) {
 		return
 	}
 
-	// Calling PlaceOrder on the injected orderSvc instance
 	order, err := h.orderSvc.PlaceOrder(c.Request.Context(), userID, req)
 	if err != nil {
 		switch err {
@@ -68,7 +66,6 @@ func (h *OrderHandler) CancelOrder(c *gin.Context) {
 		return
 	}
 
-	// Calling CancelOrder on the injected orderSvc instance
 	if err := h.orderSvc.CancelOrder(c.Request.Context(), orderID, userID); err != nil {
 		service.AbortWithError(c, http.StatusBadRequest, err.Error())
 		return

@@ -23,3 +23,9 @@ RETURNING *;
 
 -- name: ListPendingWithdrawals :many
 SELECT * FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC;
+
+-- name: ListCompletedWithdrawals :many
+SELECT * FROM withdrawals WHERE status = 'completed' ORDER BY created_at DESC;
+
+-- name: ListRejectedWithdrawals :many
+SELECT * FROM withdrawals WHERE status = 'rejected' ORDER BY created_at DESC;

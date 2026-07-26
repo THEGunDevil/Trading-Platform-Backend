@@ -249,7 +249,7 @@ func NumericToFloat64(n pgtype.Numeric) float64 {
 	}
 	f := new(big.Float).SetInt(n.Int)
 	if n.Exp != 0 {
-		exp := new(big.Float).SetFloat64(math.Pow10(int(-n.Exp)))
+		exp := new(big.Float).SetFloat64(math.Pow10(int(n.Exp))) // ← no minus
 		f.Mul(f, exp)
 	}
 	result, _ := f.Float64()

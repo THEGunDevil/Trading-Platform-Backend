@@ -94,6 +94,15 @@ type RefreshToken struct {
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 }
 
+type SessionNotification struct {
+	ID        pgtype.UUID        `json:"id"`
+	SessionID pgtype.UUID        `json:"session_id"`
+	AgentID   pgtype.UUID        `json:"agent_id"`
+	IsRead    bool               `json:"is_read"`
+	IsExpired bool               `json:"is_expired"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type SupportConversation struct {
 	ID        pgtype.UUID      `json:"id"`
 	UserID    pgtype.UUID      `json:"user_id"`
@@ -103,12 +112,25 @@ type SupportConversation struct {
 }
 
 type SupportMessage struct {
-	ID             pgtype.UUID      `json:"id"`
-	ConversationID pgtype.UUID      `json:"conversation_id"`
-	Sender         string           `json:"sender"`
-	Body           pgtype.Text      `json:"body"`
-	ImageUrl       pgtype.Text      `json:"image_url"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	ID        pgtype.UUID        `json:"id"`
+	SessionID pgtype.UUID        `json:"session_id"`
+	SenderID  pgtype.UUID        `json:"sender_id"`
+	Content   pgtype.Text        `json:"content"`
+	ImageUrl  pgtype.Text        `json:"image_url"`
+	IsAgent   bool               `json:"is_agent"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type SupportSession struct {
+	ID              pgtype.UUID        `json:"id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	AssignedAgentID pgtype.UUID        `json:"assigned_agent_id"`
+	Subject         string             `json:"subject"`
+	Status          string             `json:"status"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	AssignedAt      pgtype.Timestamptz `json:"assigned_at"`
+	ClosedAt        pgtype.Timestamptz `json:"closed_at"`
 }
 
 type Trade struct {

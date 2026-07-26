@@ -36,3 +36,6 @@ func (s *Store) ExecTx(ctx context.Context, fn func(*gen.Queries) error) error {
 
 	return tx.Commit(ctx)
 }
+func (s *Store) GetOpenLimitOrders(ctx context.Context) ([]gen.Order, error) {
+	return s.Queries.GetOpenLimitOrders(ctx)
+}

@@ -2,12 +2,12 @@
 package models
 
 import (
-	"math"
-	"math/big"
-	"time"
 	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"math"
+	"math/big"
+	"time"
 )
 
 type PredictionRequest struct {
@@ -50,15 +50,16 @@ type PredictionHistory struct {
 	Page        int                  `json:"page"`
 	Limit       int                  `json:"limit"`
 }
+
 // internal/models/prediction.go
 func convertNumericToFloat64(n pgtype.Numeric) float64 {
 	if !n.Valid || n.Int == nil {
 		return 0
 	}
-	
+
 	// Create a big.Float from the Int value
 	f := new(big.Float).SetInt(n.Int)
-	
+
 	// Apply the exponent
 	// n.Exp is the number of digits after the decimal point
 	// Example: 12345 with Exp=-4 means 1.2345
@@ -66,7 +67,7 @@ func convertNumericToFloat64(n pgtype.Numeric) float64 {
 		divisor := new(big.Float).SetFloat64(math.Pow10(int(-n.Exp)))
 		f.Quo(f, divisor)
 	}
-	
+
 	result, _ := f.Float64()
 	return result
 }

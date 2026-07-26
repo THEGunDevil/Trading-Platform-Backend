@@ -6,7 +6,7 @@ CREATE TABLE users (
     user_name VARCHAR(50) NOT NULL DEFAULT '',
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT DEFAULT 'member' CHECK (role IN ('member', 'admin')),
+    role TEXT DEFAULT 'user' CHECK (role IN ('user','agent','admin')),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     token_version INT NOT NULL DEFAULT 1,
@@ -168,21 +168,52 @@ CREATE TABLE support_conversations (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Individual chat messages (text and/or image, matching your chat component)
+CREATE TABLE support_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_agent_id UUID REFERENCES users(id),          -- renamed from agent_id
+    subject VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'assigned', 'in_progress', 'closed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    assigned_at TIMESTAMPTZ,
+    closed_at TIMESTAMPTZ
+);
+
+-- Recreate indexes if needed
+CREATE INDEX idx_support_sessions_user_id ON support_sessions(user_id);
+CREATE INDEX idx_support_sessions_assigned_agent ON support_sessions(assigned_agent_id);
+CREATE INDEX idx_support_sessions_status ON support_sessions(status);
+
+-- 2. Messages (text and/or image)
 CREATE TABLE support_messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    conversation_id UUID NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
-    sender TEXT NOT NULL CHECK (sender IN ('user', 'agent')),
-    body TEXT,
+    session_id UUID NOT NULL REFERENCES support_sessions(id) ON DELETE CASCADE,
+    sender_id UUID NOT NULL REFERENCES users(id),
+    content TEXT,
     image_url TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    CHECK (body IS NOT NULL OR image_url IS NOT NULL) -- must have at least one
+    is_agent BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (content IS NOT NULL OR image_url IS NOT NULL)
 );
-CREATE INDEX idx_support_messages_conversation_id ON support_messages(conversation_id);
+CREATE INDEX idx_messages_session ON support_messages(session_id);
+
+-- 3. Notifications (with is_expired)
+CREATE TABLE session_notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID NOT NULL REFERENCES support_sessions(id) ON DELETE CASCADE,
+    agent_id UUID NOT NULL REFERENCES users(id),
+    is_read BOOLEAN NOT NULL DEFAULT false,
+    is_expired BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- +goose Down
 DROP TABLE IF EXISTS support_messages CASCADE;
 DROP TABLE IF EXISTS support_conversations CASCADE;
+DROP TABLE IF EXISTS session_notifications CASCADE;
+DROP TABLE IF EXISTS support_sessions CASCADE;
 DROP TABLE IF EXISTS trades CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS withdrawals CASCADE;

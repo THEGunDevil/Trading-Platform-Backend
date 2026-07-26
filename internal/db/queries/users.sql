@@ -24,7 +24,10 @@ RETURNING *;
 -- name: UpdatePasswordHash :exec
 UPDATE users SET password_hash = $2, token_version = token_version + 1, updated_at = NOW()
 WHERE id = $1;
-
+-- name: UpdateUserRole :exec
+UPDATE users 
+SET role = $2, updated_at = NOW()
+WHERE id = $1;
 -- name: IncrementTokenVersion :exec
 -- Invalidates all existing refresh tokens for a user (e.g. on logout-everywhere or password change)
 UPDATE users SET token_version = token_version + 1 WHERE id = $1;

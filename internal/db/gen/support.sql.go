@@ -11,90 +11,339 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const closeConversation = `-- name: CloseConversation :exec
-UPDATE support_conversations SET status = 'closed', updated_at = NOW() WHERE id = $1
+const assignAgentToSession = `-- name: AssignAgentToSession :one
+UPDATE support_sessions
+SET assigned_agent_id = $1,
+    status = 'assigned',
+    assigned_at = NOW(),
+    updated_at = NOW()
+WHERE id = $2 AND status = 'open'
+RETURNING id, user_id, assigned_agent_id, subject, status, created_at, updated_at, assigned_at, closed_at
 `
 
-func (q *Queries) CloseConversation(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, closeConversation, id)
+type AssignAgentToSessionParams struct {
+	AssignedAgentID pgtype.UUID `json:"assigned_agent_id"`
+	ID              pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) AssignAgentToSession(ctx context.Context, arg AssignAgentToSessionParams) (SupportSession, error) {
+	row := q.db.QueryRow(ctx, assignAgentToSession, arg.AssignedAgentID, arg.ID)
+	var i SupportSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AssignedAgentID,
+		&i.Subject,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AssignedAt,
+		&i.ClosedAt,
+	)
+	return i, err
+}
+
+const closeSession = `-- name: CloseSession :exec
+UPDATE support_sessions
+SET status = 'closed', closed_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND status = 'assigned'
+`
+
+func (q *Queries) CloseSession(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, closeSession, id)
 	return err
 }
 
-const createSupportConversation = `-- name: CreateSupportConversation :one
-INSERT INTO support_conversations (user_id, status)
-VALUES ($1, 'open')
-RETURNING id, user_id, status, created_at, updated_at
+const createSessionNotification = `-- name: CreateSessionNotification :one
+INSERT INTO session_notifications (session_id, agent_id)
+VALUES ($1, $2)
+RETURNING id, session_id, agent_id, is_read, is_expired, created_at
 `
 
-func (q *Queries) CreateSupportConversation(ctx context.Context, userID pgtype.UUID) (SupportConversation, error) {
-	row := q.db.QueryRow(ctx, createSupportConversation, userID)
-	var i SupportConversation
+type CreateSessionNotificationParams struct {
+	SessionID pgtype.UUID `json:"session_id"`
+	AgentID   pgtype.UUID `json:"agent_id"`
+}
+
+func (q *Queries) CreateSessionNotification(ctx context.Context, arg CreateSessionNotificationParams) (SessionNotification, error) {
+	row := q.db.QueryRow(ctx, createSessionNotification, arg.SessionID, arg.AgentID)
+	var i SessionNotification
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.AgentID,
+		&i.IsRead,
+		&i.IsExpired,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createSupportSession = `-- name: CreateSupportSession :one
+
+INSERT INTO support_sessions (user_id, subject, status)
+VALUES ($1, $2, 'open')
+RETURNING id, user_id, assigned_agent_id, subject, status, created_at, updated_at, assigned_at, closed_at
+`
+
+type CreateSupportSessionParams struct {
+	UserID  pgtype.UUID `json:"user_id"`
+	Subject string      `json:"subject"`
+}
+
+// internal/db/queries/support.sql
+func (q *Queries) CreateSupportSession(ctx context.Context, arg CreateSupportSessionParams) (SupportSession, error) {
+	row := q.db.QueryRow(ctx, createSupportSession, arg.UserID, arg.Subject)
+	var i SupportSession
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.AssignedAgentID,
+		&i.Subject,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AssignedAt,
+		&i.ClosedAt,
 	)
 	return i, err
 }
 
-const createSupportMessage = `-- name: CreateSupportMessage :one
-INSERT INTO support_messages (conversation_id, sender, body, image_url)
-VALUES ($1, $2, $3, $4)
-RETURNING id, conversation_id, sender, body, image_url, created_at
+const expireAllNotifications = `-- name: ExpireAllNotifications :execrows
+UPDATE session_notifications
+SET is_expired = TRUE, is_read = TRUE
+WHERE session_id = $1 AND is_expired = FALSE
 `
 
-type CreateSupportMessageParams struct {
-	ConversationID pgtype.UUID `json:"conversation_id"`
-	Sender         string      `json:"sender"`
-	Body           pgtype.Text `json:"body"`
-	ImageUrl       pgtype.Text `json:"image_url"`
+func (q *Queries) ExpireAllNotifications(ctx context.Context, sessionID pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, expireAllNotifications, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-func (q *Queries) CreateSupportMessage(ctx context.Context, arg CreateSupportMessageParams) (SupportMessage, error) {
-	row := q.db.QueryRow(ctx, createSupportMessage,
-		arg.ConversationID,
-		arg.Sender,
-		arg.Body,
-		arg.ImageUrl,
-	)
-	var i SupportMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ConversationID,
-		&i.Sender,
-		&i.Body,
-		&i.ImageUrl,
-		&i.CreatedAt,
-	)
-	return i, err
+const getAgentNotifications = `-- name: GetAgentNotifications :many
+SELECT sn.id, sn.session_id, sn.agent_id, sn.is_read, sn.is_expired, sn.created_at, ss.user_id, u.user_name, u.email as user_email,
+       ss.subject, ss.created_at as session_created_at
+FROM session_notifications sn
+JOIN support_sessions ss ON sn.session_id = ss.id
+JOIN users u ON ss.user_id = u.id
+WHERE sn.agent_id = $1
+  AND sn.is_read = FALSE
+  AND sn.is_expired = FALSE
+ORDER BY ss.created_at DESC
+`
+
+type GetAgentNotificationsRow struct {
+	ID               pgtype.UUID        `json:"id"`
+	SessionID        pgtype.UUID        `json:"session_id"`
+	AgentID          pgtype.UUID        `json:"agent_id"`
+	IsRead           bool               `json:"is_read"`
+	IsExpired        bool               `json:"is_expired"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UserID           pgtype.UUID        `json:"user_id"`
+	UserName         string             `json:"user_name"`
+	UserEmail        string             `json:"user_email"`
+	Subject          string             `json:"subject"`
+	SessionCreatedAt pgtype.Timestamptz `json:"session_created_at"`
 }
 
-const getOpenConversationForUser = `-- name: GetOpenConversationForUser :one
-SELECT id, user_id, status, created_at, updated_at FROM support_conversations WHERE user_id = $1 AND status = 'open'
+func (q *Queries) GetAgentNotifications(ctx context.Context, agentID pgtype.UUID) ([]GetAgentNotificationsRow, error) {
+	rows, err := q.db.Query(ctx, getAgentNotifications, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAgentNotificationsRow
+	for rows.Next() {
+		var i GetAgentNotificationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.AgentID,
+			&i.IsRead,
+			&i.IsExpired,
+			&i.CreatedAt,
+			&i.UserID,
+			&i.UserName,
+			&i.UserEmail,
+			&i.Subject,
+			&i.SessionCreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAvailableSessions = `-- name: GetAvailableSessions :many
+SELECT ss.id, ss.user_id, ss.assigned_agent_id, ss.subject, ss.status, ss.created_at, ss.updated_at, ss.assigned_at, ss.closed_at, u.user_name, u.email as user_email
+FROM support_sessions ss
+JOIN users u ON ss.user_id = u.id
+WHERE ss.status = 'open' AND ss.assigned_agent_id IS NULL
+ORDER BY ss.created_at ASC
+`
+
+type GetAvailableSessionsRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	AssignedAgentID pgtype.UUID        `json:"assigned_agent_id"`
+	Subject         string             `json:"subject"`
+	Status          string             `json:"status"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	AssignedAt      pgtype.Timestamptz `json:"assigned_at"`
+	ClosedAt        pgtype.Timestamptz `json:"closed_at"`
+	UserName        string             `json:"user_name"`
+	UserEmail       string             `json:"user_email"`
+}
+
+func (q *Queries) GetAvailableSessions(ctx context.Context) ([]GetAvailableSessionsRow, error) {
+	rows, err := q.db.Query(ctx, getAvailableSessions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAvailableSessionsRow
+	for rows.Next() {
+		var i GetAvailableSessionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AssignedAgentID,
+			&i.Subject,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AssignedAt,
+			&i.ClosedAt,
+			&i.UserName,
+			&i.UserEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOpenSessionForUser = `-- name: GetOpenSessionForUser :one
+SELECT id, user_id, assigned_agent_id, subject, status, created_at, updated_at, assigned_at, closed_at FROM support_sessions
+WHERE user_id = $1 AND status IN ('open', 'assigned')
 ORDER BY created_at DESC LIMIT 1
 `
 
-func (q *Queries) GetOpenConversationForUser(ctx context.Context, userID pgtype.UUID) (SupportConversation, error) {
-	row := q.db.QueryRow(ctx, getOpenConversationForUser, userID)
-	var i SupportConversation
+func (q *Queries) GetOpenSessionForUser(ctx context.Context, userID pgtype.UUID) (SupportSession, error) {
+	row := q.db.QueryRow(ctx, getOpenSessionForUser, userID)
+	var i SupportSession
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.AssignedAgentID,
+		&i.Subject,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AssignedAt,
+		&i.ClosedAt,
 	)
 	return i, err
 }
 
-const listConversationMessages = `-- name: ListConversationMessages :many
-SELECT id, conversation_id, sender, body, image_url, created_at FROM support_messages WHERE conversation_id = $1 ORDER BY created_at ASC
+const getSupportSessionByID = `-- name: GetSupportSessionByID :one
+SELECT id, user_id, assigned_agent_id, subject, status, created_at, updated_at, assigned_at, closed_at FROM support_sessions WHERE id = $1
 `
 
-func (q *Queries) ListConversationMessages(ctx context.Context, conversationID pgtype.UUID) ([]SupportMessage, error) {
-	rows, err := q.db.Query(ctx, listConversationMessages, conversationID)
+func (q *Queries) GetSupportSessionByID(ctx context.Context, id pgtype.UUID) (SupportSession, error) {
+	row := q.db.QueryRow(ctx, getSupportSessionByID, id)
+	var i SupportSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AssignedAgentID,
+		&i.Subject,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AssignedAt,
+		&i.ClosedAt,
+	)
+	return i, err
+}
+
+const listAllSessionsWithUser = `-- name: ListAllSessionsWithUser :many
+SELECT 
+    ss.id, ss.user_id, ss.subject, ss.status,
+    ss.assigned_agent_id, ss.created_at, ss.updated_at,
+    ss.assigned_at, ss.closed_at,
+    u.user_name, u.email as user_email
+FROM support_sessions ss
+JOIN users u ON ss.user_id = u.id
+ORDER BY ss.created_at DESC
+`
+
+type ListAllSessionsWithUserRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	Subject         string             `json:"subject"`
+	Status          string             `json:"status"`
+	AssignedAgentID pgtype.UUID        `json:"assigned_agent_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	AssignedAt      pgtype.Timestamptz `json:"assigned_at"`
+	ClosedAt        pgtype.Timestamptz `json:"closed_at"`
+	UserName        string             `json:"user_name"`
+	UserEmail       string             `json:"user_email"`
+}
+
+func (q *Queries) ListAllSessionsWithUser(ctx context.Context) ([]ListAllSessionsWithUserRow, error) {
+	rows, err := q.db.Query(ctx, listAllSessionsWithUser)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllSessionsWithUserRow
+	for rows.Next() {
+		var i ListAllSessionsWithUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Subject,
+			&i.Status,
+			&i.AssignedAgentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AssignedAt,
+			&i.ClosedAt,
+			&i.UserName,
+			&i.UserEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSessionMessages = `-- name: ListSessionMessages :many
+SELECT id, session_id, sender_id, content, image_url, is_agent, created_at FROM support_messages
+WHERE session_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListSessionMessages(ctx context.Context, sessionID pgtype.UUID) ([]SupportMessage, error) {
+	rows, err := q.db.Query(ctx, listSessionMessages, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -104,10 +353,11 @@ func (q *Queries) ListConversationMessages(ctx context.Context, conversationID p
 		var i SupportMessage
 		if err := rows.Scan(
 			&i.ID,
-			&i.ConversationID,
-			&i.Sender,
-			&i.Body,
+			&i.SessionID,
+			&i.SenderID,
+			&i.Content,
 			&i.ImageUrl,
+			&i.IsAgent,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -120,42 +370,53 @@ func (q *Queries) ListConversationMessages(ctx context.Context, conversationID p
 	return items, nil
 }
 
-const listUserConversations = `-- name: ListUserConversations :many
-SELECT id, user_id, status, created_at, updated_at FROM support_conversations WHERE user_id = $1 ORDER BY created_at DESC
+const markNotificationAsRead = `-- name: MarkNotificationAsRead :exec
+UPDATE session_notifications
+SET is_read = TRUE
+WHERE id = $1 AND agent_id = $2
 `
 
-func (q *Queries) ListUserConversations(ctx context.Context, userID pgtype.UUID) ([]SupportConversation, error) {
-	rows, err := q.db.Query(ctx, listUserConversations, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SupportConversation
-	for rows.Next() {
-		var i SupportConversation
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type MarkNotificationAsReadParams struct {
+	ID      pgtype.UUID `json:"id"`
+	AgentID pgtype.UUID `json:"agent_id"`
 }
 
-const touchConversation = `-- name: TouchConversation :exec
-UPDATE support_conversations SET updated_at = NOW() WHERE id = $1
-`
-
-// Bump updated_at whenever a new message lands, so conversations sort by recent activity
-func (q *Queries) TouchConversation(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, touchConversation, id)
+func (q *Queries) MarkNotificationAsRead(ctx context.Context, arg MarkNotificationAsReadParams) error {
+	_, err := q.db.Exec(ctx, markNotificationAsRead, arg.ID, arg.AgentID)
 	return err
+}
+
+const sendSupportMessage = `-- name: SendSupportMessage :one
+INSERT INTO support_messages (session_id, sender_id, content, image_url, is_agent)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, session_id, sender_id, content, image_url, is_agent, created_at
+`
+
+type SendSupportMessageParams struct {
+	SessionID pgtype.UUID `json:"session_id"`
+	SenderID  pgtype.UUID `json:"sender_id"`
+	Content   pgtype.Text `json:"content"`
+	ImageUrl  pgtype.Text `json:"image_url"`
+	IsAgent   bool        `json:"is_agent"`
+}
+
+func (q *Queries) SendSupportMessage(ctx context.Context, arg SendSupportMessageParams) (SupportMessage, error) {
+	row := q.db.QueryRow(ctx, sendSupportMessage,
+		arg.SessionID,
+		arg.SenderID,
+		arg.Content,
+		arg.ImageUrl,
+		arg.IsAgent,
+	)
+	var i SupportMessage
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SenderID,
+		&i.Content,
+		&i.ImageUrl,
+		&i.IsAgent,
+		&i.CreatedAt,
+	)
+	return i, err
 }

@@ -5,11 +5,11 @@ import (
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
 	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/models"
+	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -94,104 +94,35 @@ func GetUserByIDHandler(c *gin.Context) {
 		return
 	}
 
-	// Optional: check if the middleware set banned_user flag
-	// bannedUserFlag, _ := c.Get("banned_user")
-
-	// 2️⃣ Fetch user from DB
+	// 1️⃣ Fetch user from DB
 	user, err := db.Q.GetUserByID(c.Request.Context(), pgtype.UUID{Bytes: userUUID, Valid: true})
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
-	// 4️⃣ Build response
-	resp := models.UserResponse{
-		ID:             user.ID.Bytes,
-		UserName:       user.UserName,
-		Email:          user.Email,
-		IsBanned:       user.IsBanned.Bool,
-		IsPermanentBan: user.IsPermanentBan.Bool,
-		BanReason:      user.BanReason.String,
-		BanUntil:       &user.BanUntil.Time,
-		CreatedAt:      user.CreatedAt.Time,
+	// 2️⃣ Fetch balances for this user
+	balances, err := db.Q.ListBalances(c.Request.Context(), service.UUIDToPGType(userUUID))
+	if err != nil {
+		balances = []gen.Balance{} // empty slice on error
 	}
 
-	log.Printf("👤 Returning user data for user %v (banned: %v)", user.ID, user.IsBanned.Bool)
+	// 3️⃣ Convert to models.Balance (JSON-friendly)
+	balanceModels, err := service.ToBalanceModels(balances)
+	if err != nil {
+		log.Printf("⚠️ Failed to convert balances: %v", err)
+		balanceModels = []models.Balance{} // fallback
+	}
+
+	// 4️⃣ Build response
+	resp := gin.H{
+		"user":     user,
+		"balances": balanceModels,
+	}
+
+	log.Printf("👤 Returning user data for user %v (banned: %v) with %d balances", user.ID, user.IsBanned.Bool, len(balanceModels))
 	c.JSON(http.StatusOK, resp)
 }
-func SearchUsersPaginatedHandler(c *gin.Context) {
-	// Pagination
-	page := 1
-	limit := 10
-
-	if p := c.Query("page"); p != "" {
-		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
-			page = parsed
-		}
-	}
-
-	if l := c.Query("limit"); l != "" {
-		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
-			limit = parsed
-		}
-	}
-
-	offset := (page - 1) * limit
-
-	// Search query (partial email)
-	query := strings.TrimSpace(c.Query("email"))
-	if query == "" {
-		query = "" // or "*" depending on your query
-	}
-
-	log.Printf("🔍 Searching users: email='%s', page=%d", query, page)
-
-	// SQLC params
-	params := gen.SearchUsersByEmailWithPaginationParams{
-		Column1: pgtype.Text{String: query, Valid: true}, // search term
-		Limit:   int32(limit),
-		Offset:  int32(offset),
-	}
-
-	// Execute search query
-	rows, err := db.Q.SearchUsersByEmailWithPagination(c.Request.Context(), params)
-	if err != nil {
-		log.Printf("❌ Search error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch users"})
-		return
-	}
-
-	// Count total matching users
-	totalCount, err := db.Q.CountUsersByEmail(c.Request.Context(), pgtype.Text{String: query, Valid: true})
-	if err != nil {
-		log.Printf("❌ Count error: %v", err)
-		totalCount = 0
-	}
-
-	// Map response
-	var result []models.UserResponse
-	for _, user := range rows {
-		result = append(result, models.UserResponse{
-			ID:        user.ID.Bytes,
-			UserName:  user.UserName,
-			Email:     user.Email,
-			CreatedAt: user.CreatedAt.Time,
-			// Add other fields if needed
-		})
-	}
-
-	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
-
-	c.JSON(http.StatusOK, gin.H{
-		"page":        page,
-		"limit":       limit,
-		"count":       len(result),
-		"total_count": totalCount,
-		"total_pages": totalPages,
-		"users":       result,
-	})
-}
-
 // UpdateUserByIDHandler updates user by ID
 func UpdateUserByIDHandler(c *gin.Context) {
 	// Parse UUID
@@ -234,49 +165,4 @@ func UpdateUserByIDHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
-}
-func BanUserByIDHandler(c *gin.Context) {
-	// Parse UUID
-	idStr := c.Param("id")
-	parsedID, err := uuid.Parse(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	// Bind request
-	var req models.BanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Handle BanUntil
-	var banUntil pgtype.Timestamp
-	if req.IsPermanentBan {
-		// Permanent ban has no expiration
-		banUntil = pgtype.Timestamp{Valid: false}
-	} else if req.BanUntil != nil {
-		banUntil = pgtype.Timestamp{Time: *req.BanUntil, Valid: true}
-	} else {
-		banUntil = pgtype.Timestamp{Valid: false}
-	}
-
-	// Update user ban
-	params := gen.BanUserParams{
-		ID:             pgtype.UUID{Bytes: parsedID, Valid: true},
-		BanReason:      pgtype.Text{String: req.BanReason, Valid: true},
-		BanUntil:       banUntil,
-		IsPermanentBan: pgtype.Bool{Bool: req.IsPermanentBan, Valid: true},
-	}
-
-	err = db.Q.BanUser(c.Request.Context(), params)
-	if err != nil {
-		log.Printf("BanUser error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user ban status"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": "User banned successfully",
-	})
 }

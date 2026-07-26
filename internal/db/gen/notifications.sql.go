@@ -23,6 +23,7 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID pgtype.UU
 }
 
 const createEvent = `-- name: CreateEvent :one
+
 INSERT INTO events (object_id, object_title, type, title, message, metadata)
 VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, object_id, object_title, type, title, message, metadata, created_at
@@ -37,6 +38,7 @@ type CreateEventParams struct {
 	Metadata    []byte      `json:"metadata"`
 }
 
+// internal/db/queries/notifications.sql
 func (q *Queries) CreateEvent(ctx context.Context, arg CreateEventParams) (Event, error) {
 	row := q.db.QueryRow(ctx, createEvent,
 		arg.ObjectID,
@@ -142,29 +144,4 @@ func (q *Queries) ListUserNotifications(ctx context.Context, arg ListUserNotific
 		return nil, err
 	}
 	return items, nil
-}
-
-const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
-UPDATE user_notification_status SET is_read = true, read_at = NOW()
-WHERE user_id = $1 AND is_read = false
-`
-
-func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, markAllNotificationsRead, userID)
-	return err
-}
-
-const markNotificationRead = `-- name: MarkNotificationRead :exec
-UPDATE user_notification_status SET is_read = true, read_at = NOW()
-WHERE user_id = $1 AND event_id = $2
-`
-
-type MarkNotificationReadParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	EventID pgtype.UUID `json:"event_id"`
-}
-
-func (q *Queries) MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) error {
-	_, err := q.db.Exec(ctx, markNotificationRead, arg.UserID, arg.EventID)
-	return err
 }

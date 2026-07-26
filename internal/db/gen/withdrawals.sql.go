@@ -75,12 +75,84 @@ func (q *Queries) GetWithdrawalByID(ctx context.Context, id pgtype.UUID) (Withdr
 	return i, err
 }
 
+const listCompletedWithdrawals = `-- name: ListCompletedWithdrawals :many
+SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'completed' ORDER BY created_at DESC
+`
+
+func (q *Queries) ListCompletedWithdrawals(ctx context.Context) ([]Withdrawal, error) {
+	rows, err := q.db.Query(ctx, listCompletedWithdrawals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Withdrawal
+	for rows.Next() {
+		var i Withdrawal
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Asset,
+			&i.Network,
+			&i.DestinationAddress,
+			&i.Amount,
+			&i.Fee,
+			&i.Status,
+			&i.TxHash,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingWithdrawals = `-- name: ListPendingWithdrawals :many
 SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC
 `
 
 func (q *Queries) ListPendingWithdrawals(ctx context.Context) ([]Withdrawal, error) {
 	rows, err := q.db.Query(ctx, listPendingWithdrawals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Withdrawal
+	for rows.Next() {
+		var i Withdrawal
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Asset,
+			&i.Network,
+			&i.DestinationAddress,
+			&i.Amount,
+			&i.Fee,
+			&i.Status,
+			&i.TxHash,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRejectedWithdrawals = `-- name: ListRejectedWithdrawals :many
+SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'rejected' ORDER BY created_at DESC
+`
+
+func (q *Queries) ListRejectedWithdrawals(ctx context.Context) ([]Withdrawal, error) {
+	rows, err := q.db.Query(ctx, listRejectedWithdrawals)
 	if err != nil {
 		return nil, err
 	}
