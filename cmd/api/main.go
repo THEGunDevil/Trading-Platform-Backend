@@ -36,7 +36,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.LocalConnect(cfg)
+	db.Connect(cfg)
+		// db.LocalConnect(cfg)
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
