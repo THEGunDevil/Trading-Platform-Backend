@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	// "fmt"
 	"log"
 	"net/http"
 	"os"
@@ -27,12 +27,12 @@ func main() {
 	}
 
 	// ── Cloudinary ─────────────────────────────────────────────────────────────
-	service.InitCloudinary(fmt.Sprintf(
-		"cloudinary://%s:%s@%s",
-		os.Getenv("CLOUDINARY_API_KEY"),
-		os.Getenv("CLOUDINARY_API_SECRET"),
-		os.Getenv("CLOUDINARY_CLOUD_NAME"),
-	))
+	// service.InitCloudinary(fmt.Sprintf(
+	// 	"cloudinary://%s:%s@%s",
+	// 	os.Getenv("CLOUDINARY_API_KEY"),
+	// 	os.Getenv("CLOUDINARY_API_SECRET"),
+	// 	os.Getenv("CLOUDINARY_CLOUD_NAME"),
+	// ))
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
