@@ -36,8 +36,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.Connect(cfg)
-		// db.LocalConnect(cfg)
+	// db.Connect(cfg)
+	db.LocalConnect(cfg)
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ func main() {
 	r.RedirectTrailingSlash = false
 	r.Use(
 		cors.New(cors.Config{
-			AllowOrigins:     []string{"http://localhost:3000", "http://192.168.1.103:3000"},
+			AllowOrigins:     []string{"http://localhost:3000", "http://192.168.1.103:3000", "https://trading-platform-vercel-url.vercel.app"},
 			AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 			ExposeHeaders:    []string{"Content-Length"},
@@ -188,7 +188,7 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 
 	// User withdrawal request
 	userWithdrawalHandler := handlers.NewWithdrawalHandler(withdrawalSvc)
-	r.POST("/withdrawals", middleware.AuthMiddleware(), middleware.RateLimiter(),userWithdrawalHandler.RequestWithdrawal)
+	r.POST("/withdrawals", middleware.AuthMiddleware(), middleware.RateLimiter(), userWithdrawalHandler.RequestWithdrawal)
 	// Orders — authenticated, rate limited
 	orders := r.Group("/orders")
 	orders.Use(middleware.AuthMiddleware(), middleware.RateLimiter())

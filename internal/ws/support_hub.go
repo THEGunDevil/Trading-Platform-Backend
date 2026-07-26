@@ -26,6 +26,13 @@ type WebSocketMessage struct {
 	ExtraData map[string]interface{} `json:"extraData,omitempty"`
 }
 
+// TypingEvent holds a typing indicator from a client
+type TypingEvent struct {
+	SessionID string
+	UserID    string
+	IsTyping  bool
+}
+
 // ---- Incoming WebSocket message (from frontend) ----
 type IncomingChatMessage struct {
 	Type      string `json:"type"`      // "chat" or "agent_take"
@@ -58,14 +65,16 @@ type AssignAgentRequest struct {
 }
 
 // ---- Hub ----
+// ---- Hub ----
 type SupportHub struct {
 	clients        map[string]*SupportClient
 	sessionClients map[string]map[string]*SupportClient
-	Register       chan *SupportClient // ← exported
+	Register       chan *SupportClient
 	unregister     chan *SupportClient
 	chatMsg        chan *ChatMessage
 	newSession     chan *NewSessionEvent
 	assignReq      chan AssignAgentRequest
+	typingMsg      chan *TypingEvent // ✅ inside the struct
 	mu             sync.RWMutex
 	Queries        *gen.Queries
 }
@@ -79,6 +88,7 @@ func NewSupportHub(queries *gen.Queries) *SupportHub {
 		chatMsg:        make(chan *ChatMessage),
 		newSession:     make(chan *NewSessionEvent),
 		assignReq:      make(chan AssignAgentRequest),
+		typingMsg:      make(chan *TypingEvent),
 		Queries:        queries,
 	}
 	go h.Run()
@@ -96,6 +106,8 @@ func (h *SupportHub) Run() {
 			h.processChatMessage(msg)
 		case event := <-h.newSession:
 			h.notifyAgentsOfNewSession(event)
+		case event := <-h.typingMsg:
+			h.processTypingEvent(event)
 		case req := <-h.assignReq:
 			h.assignAgent(req)
 		}
@@ -205,7 +217,7 @@ func (h *SupportHub) notifyAgentsOfNewSession(event *NewSessionEvent) {
 	}
 	log.Printf("📢 Total clients: %d, Agents: %d", totalClients, agentCount)
 	// ⬆️ উপরের ৬ লাইন যোগ করুন
-	
+
 	for uid, client := range h.clients {
 		if !client.IsAgent {
 			continue
@@ -464,10 +476,45 @@ func (c *SupportClient) ReadPump() {
 				AgentID:     agentUUID,
 				AgentUserID: c.UserID,
 			}
+		case "typing":
+			// raw.Content is "true" or "false"
+			isTyping := raw.Content == "true"
+			c.Hub.SendTypingEvent(raw.SessionID, c.UserID, isTyping)
 		}
 	}
 }
 
+func (h *SupportHub) SendTypingEvent(sessionID, userID string, isTyping bool) {
+	h.typingMsg <- &TypingEvent{
+		SessionID: sessionID,
+		UserID:    userID,
+		IsTyping:  isTyping,
+	}
+}
+func (h *SupportHub) processTypingEvent(event *TypingEvent) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if sClients, ok := h.sessionClients[event.SessionID]; ok {
+		for _, client := range sClients {
+			// Don't send back to the sender
+			if client.UserID == event.UserID {
+				continue
+			}
+			msg := &WebSocketMessage{
+				Type:      "typing",
+				SessionID: event.SessionID,
+				Content:   fmt.Sprintf("%v", event.IsTyping),
+				SenderID:  event.UserID,
+				Timestamp: time.Now(),
+			}
+			select {
+			case client.Send <- msg:
+			default:
+			}
+		}
+	}
+}
 func (c *SupportClient) WritePump() {
 	defer c.Conn.Close()
 	for msg := range c.Send {
