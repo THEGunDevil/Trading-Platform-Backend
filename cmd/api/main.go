@@ -60,7 +60,7 @@ func main() {
 	r.RedirectTrailingSlash = false
 	r.Use(
 		cors.New(cors.Config{
-			AllowOrigins:     []string{"http://localhost:3000", "http://192.168.1.103:3000", "https://himon-bici-chara-fxay6kz8q-thegundevils-projects.vercel.app"},
+			AllowOrigins:     []string{"http://localhost:3000", "http://192.168.1.103:3000", "https://trading-platform-nu-seven.vercel.app"},
 			AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 			AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 			ExposeHeaders:    []string{"Content-Length"},
