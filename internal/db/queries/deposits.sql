@@ -1,11 +1,3 @@
--- name: CreateDepositAddress :one
-INSERT INTO deposit_addresses (user_id, asset, network, address)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (user_id, asset, network) DO UPDATE SET address = EXCLUDED.address
-RETURNING *;
-
--- name: GetDepositAddress :one
-SELECT * FROM deposit_addresses WHERE user_id = $1 AND asset = $2 AND network = $3;
 
 -- name: CreateDeposit :one
 INSERT INTO deposits (user_id, asset, network, amount, tx_hash, status)

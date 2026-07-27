@@ -214,11 +214,15 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		adminGroup.PATCH("/users/unban/:id", adminHandler.UnbanUser)
 		adminGroup.PATCH("/users/role/:id", adminHandler.UpdateUserRole)
 		withdrawalHandler := handlers.NewAdminWithdrawalHandler(store.Queries)
-		adminGroup.GET("/withdrawals", withdrawalHandler.ListAllWithdrawals)
+		adminGroup.GET("/withdrawals/search", withdrawalHandler.SearchWithdrawals)
 		adminGroup.PATCH("/withdrawals/:id/approve", withdrawalHandler.ApproveWithdrawal)
 		adminGroup.PATCH("/withdrawals/:id/reject", withdrawalHandler.RejectWithdrawal)
 		adminGroup.GET("/withdrawals/completed", withdrawalHandler.ListCompletedWithdrawals)
 		adminGroup.GET("/withdrawals/rejected", withdrawalHandler.ListRejectedWithdrawals)
+
+		adminSettingsHandler := handlers.NewAdminSettingsHandler(store.Queries)
+		adminGroup.GET("/settings/deposit-address", adminSettingsHandler.GetDepositAddress)
+		adminGroup.PUT("/settings/deposit-address", adminSettingsHandler.UpdateDepositAddress)
 	}
 
 }

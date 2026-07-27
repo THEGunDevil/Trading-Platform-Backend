@@ -16,22 +16,21 @@ type AdminWithdrawalHandler struct {
 func NewAdminWithdrawalHandler(queries *gen.Queries) *AdminWithdrawalHandler {
     return &AdminWithdrawalHandler{Queries: queries}
 }
-
-// GET /admin/withdrawals → returns all withdrawals (you can also use ListPendingWithdrawals if you prefer)
-func (h *AdminWithdrawalHandler) ListAllWithdrawals(c *gin.Context) {
-    // Using your existing ListPendingWithdrawals to get all pending; if you want all, you'd need a new query.
-    // For now we'll just use the existing ListPendingWithdrawals, which is probably what you need.
-    withdrawals, err := h.Queries.ListPendingWithdrawals(c.Request.Context())
+// GET /admin/withdrawals/:search  (search by user id)
+// GET /admin/withdrawals/search?q=john
+func (h *AdminWithdrawalHandler) SearchWithdrawals(c *gin.Context) {
+    query := c.Query("q")
+    if query == "" {
+        service.AbortWithError(c, http.StatusBadRequest, "search query is required")
+        return
+    }
+    withdrawals, err := h.Queries.SearchWithdrawalsByUser(c.Request.Context(), service.StringToPGText(query))
     if err != nil {
-        service.AbortWithError(c, http.StatusInternalServerError, "failed to fetch withdrawals")
+        service.AbortWithError(c, http.StatusInternalServerError, "failed to search withdrawals")
         return
     }
     c.JSON(http.StatusOK, withdrawals)
 }
-
-// GET /admin/withdrawals/pending (optional, already covered by the above)
-// You can have a separate one if needed.
-
 // PATCH /admin/withdrawals/:id/approve
 func (h *AdminWithdrawalHandler) ApproveWithdrawal(c *gin.Context) {
     id, err := uuid.Parse(c.Param("id"))

@@ -30,15 +30,6 @@ type Deposit struct {
 	ConfirmedAt   pgtype.Timestamp `json:"confirmed_at"`
 }
 
-type DepositAddress struct {
-	ID        pgtype.UUID      `json:"id"`
-	UserID    pgtype.UUID      `json:"user_id"`
-	Asset     string           `json:"asset"`
-	Network   string           `json:"network"`
-	Address   string           `json:"address"`
-	CreatedAt pgtype.Timestamp `json:"created_at"`
-}
-
 type Event struct {
 	ID          pgtype.UUID      `json:"id"`
 	ObjectID    pgtype.UUID      `json:"object_id"`
@@ -64,6 +55,13 @@ type Order struct {
 	Status    string           `json:"status"`
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 	FilledAt  pgtype.Timestamp `json:"filled_at"`
+}
+
+type PlatformSetting struct {
+	Key       string             `json:"key"`
+	Value     string             `json:"value"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Prediction struct {

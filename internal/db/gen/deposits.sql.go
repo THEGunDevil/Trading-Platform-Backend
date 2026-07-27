@@ -49,63 +49,6 @@ func (q *Queries) CreateDeposit(ctx context.Context, arg CreateDepositParams) (D
 	return i, err
 }
 
-const createDepositAddress = `-- name: CreateDepositAddress :one
-INSERT INTO deposit_addresses (user_id, asset, network, address)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (user_id, asset, network) DO UPDATE SET address = EXCLUDED.address
-RETURNING id, user_id, asset, network, address, created_at
-`
-
-type CreateDepositAddressParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	Asset   string      `json:"asset"`
-	Network string      `json:"network"`
-	Address string      `json:"address"`
-}
-
-func (q *Queries) CreateDepositAddress(ctx context.Context, arg CreateDepositAddressParams) (DepositAddress, error) {
-	row := q.db.QueryRow(ctx, createDepositAddress,
-		arg.UserID,
-		arg.Asset,
-		arg.Network,
-		arg.Address,
-	)
-	var i DepositAddress
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Asset,
-		&i.Network,
-		&i.Address,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getDepositAddress = `-- name: GetDepositAddress :one
-SELECT id, user_id, asset, network, address, created_at FROM deposit_addresses WHERE user_id = $1 AND asset = $2 AND network = $3
-`
-
-type GetDepositAddressParams struct {
-	UserID  pgtype.UUID `json:"user_id"`
-	Asset   string      `json:"asset"`
-	Network string      `json:"network"`
-}
-
-func (q *Queries) GetDepositAddress(ctx context.Context, arg GetDepositAddressParams) (DepositAddress, error) {
-	row := q.db.QueryRow(ctx, getDepositAddress, arg.UserID, arg.Asset, arg.Network)
-	var i DepositAddress
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Asset,
-		&i.Network,
-		&i.Address,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const getDepositByID = `-- name: GetDepositByID :one
 SELECT id, user_id, asset, network, amount, tx_hash, confirmations, status, created_at, confirmed_at FROM deposits WHERE id = $1
 `

@@ -81,16 +81,11 @@ CREATE TABLE balances (
     UNIQUE(user_id, asset)
 );
 CREATE INDEX idx_balances_user_id ON balances(user_id);
-
--- Deposit addresses issued per user/asset/network
-CREATE TABLE deposit_addresses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    asset TEXT NOT NULL,
-    network TEXT NOT NULL,          -- e.g. "TRC20", "ERC20", "Native"
-    address TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(user_id, asset, network)
+CREATE TABLE IF NOT EXISTS platform_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Deposit records (funds arriving)
@@ -218,7 +213,7 @@ DROP TABLE IF EXISTS trades CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS withdrawals CASCADE;
 DROP TABLE IF EXISTS deposits CASCADE;
-DROP TABLE IF EXISTS deposit_addresses CASCADE;
+DROP TABLE IF EXISTS platform_settings;
 DROP TABLE IF EXISTS balances CASCADE;
 DROP TABLE IF EXISTS watchlist_items CASCADE;
 DROP TABLE IF EXISTS refresh_tokens CASCADE;

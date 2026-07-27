@@ -47,3 +47,15 @@ LIMIT $1 OFFSET $2;
 
 -- name: CountAgentUsers :one
 SELECT COUNT(*) FROM users WHERE role = 'agent';
+
+
+
+
+-- name: GetPlatformSetting :one
+SELECT value FROM platform_settings WHERE key = $1;
+
+-- name: UpsertPlatformSetting :exec
+INSERT INTO platform_settings (key, value, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (key)
+DO UPDATE SET value = $2, updated_at = NOW();

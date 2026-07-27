@@ -195,6 +195,17 @@ func (q *Queries) GetPlatformBalances(ctx context.Context) ([]GetPlatformBalance
 	return items, nil
 }
 
+const getPlatformSetting = `-- name: GetPlatformSetting :one
+SELECT value FROM platform_settings WHERE key = $1
+`
+
+func (q *Queries) GetPlatformSetting(ctx context.Context, key string) (string, error) {
+	row := q.db.QueryRow(ctx, getPlatformSetting, key)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getRecentTrades = `-- name: GetRecentTrades :many
 SELECT 
     t.id, t.symbol, o.side, t.price, t.quantity, t.fee, t.executed_at AS created_at
@@ -297,4 +308,21 @@ func (q *Queries) ListAgentUsersPaginated(ctx context.Context, arg ListAgentUser
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertPlatformSetting = `-- name: UpsertPlatformSetting :exec
+INSERT INTO platform_settings (key, value, updated_at)
+VALUES ($1, $2, NOW())
+ON CONFLICT (key)
+DO UPDATE SET value = $2, updated_at = NOW()
+`
+
+type UpsertPlatformSettingParams struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+func (q *Queries) UpsertPlatformSetting(ctx context.Context, arg UpsertPlatformSettingParams) error {
+	_, err := q.db.Exec(ctx, upsertPlatformSetting, arg.Key, arg.Value)
+	return err
 }

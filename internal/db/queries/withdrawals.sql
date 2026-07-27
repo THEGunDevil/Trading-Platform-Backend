@@ -6,8 +6,13 @@ RETURNING *;
 -- name: GetWithdrawalByID :one
 SELECT * FROM withdrawals WHERE id = $1;
 
--- name: ListUserWithdrawals :many
-SELECT * FROM withdrawals WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3;
+-- name: SearchWithdrawalsByUser :many
+SELECT w.*
+FROM withdrawals w
+JOIN users u ON w.user_id = u.id
+WHERE u.user_name ILIKE '%' || $1 || '%'
+   OR u.email ILIKE '%' || $1 || '%'
+ORDER BY w.created_at DESC;
 
 -- name: UpdateWithdrawalStatus :one
 UPDATE withdrawals SET status = $2 WHERE id = $1

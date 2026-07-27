@@ -183,48 +183,6 @@ func (q *Queries) ListRejectedWithdrawals(ctx context.Context) ([]Withdrawal, er
 	return items, nil
 }
 
-const listUserWithdrawals = `-- name: ListUserWithdrawals :many
-SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
-`
-
-type ListUserWithdrawalsParams struct {
-	UserID pgtype.UUID `json:"user_id"`
-	Limit  int32       `json:"limit"`
-	Offset int32       `json:"offset"`
-}
-
-func (q *Queries) ListUserWithdrawals(ctx context.Context, arg ListUserWithdrawalsParams) ([]Withdrawal, error) {
-	rows, err := q.db.Query(ctx, listUserWithdrawals, arg.UserID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Withdrawal
-	for rows.Next() {
-		var i Withdrawal
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Asset,
-			&i.Network,
-			&i.DestinationAddress,
-			&i.Amount,
-			&i.Fee,
-			&i.Status,
-			&i.TxHash,
-			&i.CreatedAt,
-			&i.CompletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const markWithdrawalCompleted = `-- name: MarkWithdrawalCompleted :one
 UPDATE withdrawals SET status = 'completed', tx_hash = $2, completed_at = NOW() WHERE id = $1
 RETURNING id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at
@@ -276,6 +234,47 @@ func (q *Queries) MarkWithdrawalRejected(ctx context.Context, id pgtype.UUID) (W
 		&i.CompletedAt,
 	)
 	return i, err
+}
+
+const searchWithdrawalsByUser = `-- name: SearchWithdrawalsByUser :many
+SELECT w.id, w.user_id, w.asset, w.network, w.destination_address, w.amount, w.fee, w.status, w.tx_hash, w.created_at, w.completed_at
+FROM withdrawals w
+JOIN users u ON w.user_id = u.id
+WHERE u.user_name ILIKE '%' || $1 || '%'
+   OR u.email ILIKE '%' || $1 || '%'
+ORDER BY w.created_at DESC
+`
+
+func (q *Queries) SearchWithdrawalsByUser(ctx context.Context, dollar_1 pgtype.Text) ([]Withdrawal, error) {
+	rows, err := q.db.Query(ctx, searchWithdrawalsByUser, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Withdrawal
+	for rows.Next() {
+		var i Withdrawal
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Asset,
+			&i.Network,
+			&i.DestinationAddress,
+			&i.Amount,
+			&i.Fee,
+			&i.Status,
+			&i.TxHash,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateWithdrawalStatus = `-- name: UpdateWithdrawalStatus :one
