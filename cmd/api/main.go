@@ -30,7 +30,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.LocalConnect(cfg) // use local connect for development
+	db.Connect(cfg)
+	// db.LocalConnect(cfg) // use local connect for development
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
@@ -140,7 +141,7 @@ func registerRoutes(
 
 	// WebSocket endpoint
 	r.GET("/ws/support", supportWSHandler.HandleWebSocket)
-	
+
 	publicHandler := handlers.NewPublicHandler(store.Queries)
 	r.GET("/public/deposit-address", publicHandler.GetDepositAddress)
 	// ── Support REST ───────────────────────────────────────────────────
