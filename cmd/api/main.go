@@ -2,14 +2,6 @@ package main
 
 import (
 	"context"
-	// "fmt"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
-
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/config"
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/handlers"
@@ -18,26 +10,27 @@ import (
 	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/ws"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv" // added for .env loading
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 func main() {
+	// Load .env file early so all os.Getenv calls can read from it
+	_ = godotenv.Load()
+
 	// ── Environment ────────────────────────────────────────────────────────────
 	if err := service.Init(); err != nil {
 		log.Fatal("Failed to initialize services:", err)
 	}
 
-	// ── Cloudinary ─────────────────────────────────────────────────────────────
-	// service.InitCloudinary(fmt.Sprintf(
-	// 	"cloudinary://%s:%s@%s",
-	// 	os.Getenv("CLOUDINARY_API_KEY"),
-	// 	os.Getenv("CLOUDINARY_API_SECRET"),
-	// 	os.Getenv("CLOUDINARY_CLOUD_NAME"),
-	// ))
-
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.Connect(cfg)
-	// db.LocalConnect(cfg)
+	db.LocalConnect(cfg) // use local connect for development
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
@@ -71,9 +64,17 @@ func main() {
 		gin.Recovery(),
 	)
 
-	// ── Routes ─────────────────────────────────────────────────────────────────
-	supportHub := ws.NewSupportHub(store.Queries) // or store.GetQueries()
-	registerRoutes(r, orderSvc, limitEngine, store, supportHub)
+	// ── WebSocket Hub (panic‑safe) ────────────────────────────────────────────
+	supportHub := ws.NewSupportHub(store.Queries)
+
+	// ✅ Load JWT secret from environment (set in .env or production env)
+	jwtSecret := os.Getenv("JWT_ACCESS_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_ACCESS_SECRET is not set")
+	}
+
+	// Pass the secret to route registration
+	registerRoutes(r, orderSvc, limitEngine, store, supportHub, jwtSecret)
 
 	// ── Server ─────────────────────────────────────────────────────────────────
 	port := os.Getenv("PORT")
@@ -112,32 +113,46 @@ func main() {
 }
 
 // registerRoutes wires all route groups onto the engine.
-func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *service.LimitOrderEngine, store *db.Store, supportHub *ws.SupportHub) {
+func registerRoutes(
+	r *gin.Engine,
+	orderSvc *service.OrderService,
+	limitEngine *service.LimitOrderEngine,
+	store *db.Store,
+	supportHub *ws.SupportHub,
+	jwtSecret string, // <-- new parameter
+) {
 	log.Println("✅ Registering routes...")
 	log.Printf("   Store: %v", store != nil)
 
 	orderHandler := handlers.NewOrderHandler(orderSvc)
+
+	// ✅ Create the WebSocket handler with the pre-loaded secret
 	supportWSHandler := &handlers.SupportWSHandler{
-		Hub:     supportHub,
-		Queries: store.Queries,
+		Hub:       supportHub,
+		Queries:   store.Queries,
+		JWTSecret: jwtSecret, // this was previously missing
 	}
+
 	// Health
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
 	// WebSocket endpoint
 	r.GET("/ws/support", supportWSHandler.HandleWebSocket)
-
+	
+	publicHandler := handlers.NewPublicHandler(store.Queries)
+	r.GET("/public/deposit-address", publicHandler.GetDepositAddress)
 	// ── Support REST ───────────────────────────────────────────────────
 	supportRest := handlers.NewSupportRestHandler(store.Queries, supportHub)
 	support := r.Group("/support")
-	support.Use(middleware.AuthMiddleware()) // all support routes require auth
+	support.Use(middleware.AuthMiddleware())
 	{
 		support.POST("/sessions", supportRest.CreateSession)
 		support.GET("/sessions/:id/messages", supportRest.GetMessages)
 		support.GET("/sessions/open", supportRest.GetOpenSession)
-		// support.POST("/upload", supportRest.UploadImage)
 	}
+
 	// Agent routes (protected)
 	agentGroup := r.Group("/agent")
 	agentGroup.Use(middleware.AuthMiddleware(), middleware.RequireAgent())
@@ -148,6 +163,7 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		agentGroup.POST("/conversations/:id/assign", agentHandler.AssignConversation)
 		agentGroup.POST("/conversations/:id/close", agentHandler.CloseConversation)
 	}
+
 	// Auth — rate limited to prevent brute force, no auth required
 	auth := r.Group("/auth")
 	auth.Use(middleware.RateLimiter())
@@ -162,7 +178,7 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 	balances := r.Group("/balances")
 	balances.Use(middleware.AuthMiddleware())
 	{
-		balances.GET("/", handlers.ListBalances)
+		balances.GET("", handlers.ListBalances)
 		balances.GET("/:asset", handlers.GetBalance)
 	}
 
@@ -184,11 +200,13 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		users.GET("/user/:id", handlers.GetUserByIDHandler)
 		users.PATCH("/user/:id", handlers.UpdateUserByIDHandler)
 	}
+
 	withdrawalSvc := service.NewWithdrawalService(store)
 
 	// User withdrawal request
 	userWithdrawalHandler := handlers.NewWithdrawalHandler(withdrawalSvc)
 	r.POST("/withdrawals", middleware.AuthMiddleware(), middleware.RateLimiter(), userWithdrawalHandler.RequestWithdrawal)
+
 	// Orders — authenticated, rate limited
 	orders := r.Group("/orders")
 	orders.Use(middleware.AuthMiddleware(), middleware.RateLimiter())
@@ -196,16 +214,14 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		orders.POST("", orderHandler.PlaceOrder)
 		orders.DELETE("/:id", orderHandler.CancelOrder)
 	}
+
 	// Admin routes (protected, admin only)
 	adminGroup := r.Group("/admin")
 	adminGroup.Use(middleware.AuthMiddleware(), middleware.AdminOnly())
 	{
 		adminHandler := handlers.NewAdminHandler(store.Queries)
 
-		// Dashboard – returns users, balances, trades, sessions
 		adminGroup.GET("/dashboard", adminHandler.GetAdminDashboard)
-
-		// User management
 		adminGroup.GET("/users", adminHandler.GetUsersHandler)
 		adminGroup.GET("/users/agents", adminHandler.GetAgentUsersHandler)
 		adminGroup.GET("/users/banned", adminHandler.GetBannedUsersHandler)
@@ -213,6 +229,7 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		adminGroup.PATCH("/users/ban/:id", adminHandler.BanUser)
 		adminGroup.PATCH("/users/unban/:id", adminHandler.UnbanUser)
 		adminGroup.PATCH("/users/role/:id", adminHandler.UpdateUserRole)
+
 		withdrawalHandler := handlers.NewAdminWithdrawalHandler(store.Queries)
 		adminGroup.GET("/withdrawals/search", withdrawalHandler.SearchWithdrawals)
 		adminGroup.PATCH("/withdrawals/:id/approve", withdrawalHandler.ApproveWithdrawal)
@@ -224,5 +241,4 @@ func registerRoutes(r *gin.Engine, orderSvc *service.OrderService, limitEngine *
 		adminGroup.GET("/settings/deposit-address", adminSettingsHandler.GetDepositAddress)
 		adminGroup.PUT("/settings/deposit-address", adminSettingsHandler.UpdateDepositAddress)
 	}
-
 }

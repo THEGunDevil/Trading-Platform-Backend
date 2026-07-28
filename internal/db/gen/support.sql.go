@@ -124,29 +124,31 @@ func (q *Queries) ExpireAllNotifications(ctx context.Context, sessionID pgtype.U
 }
 
 const getAgentNotifications = `-- name: GetAgentNotifications :many
-SELECT sn.id, sn.session_id, sn.agent_id, sn.is_read, sn.is_expired, sn.created_at, ss.user_id, u.user_name, u.email as user_email,
-       ss.subject, ss.created_at as session_created_at
+SELECT
+    sn.id,
+    sn.session_id,
+    sn.agent_id,
+    sn.created_at,
+    ss.subject,
+    ss.created_at AS session_created_at,
+    u.user_name
 FROM session_notifications sn
-JOIN support_sessions ss ON sn.session_id = ss.id
-JOIN users u ON ss.user_id = u.id
+JOIN support_sessions ss ON ss.id = sn.session_id
+JOIN users u ON u.id = ss.user_id
 WHERE sn.agent_id = $1
-  AND sn.is_read = FALSE
-  AND sn.is_expired = FALSE
-ORDER BY ss.created_at DESC
+  AND sn.is_read = false
+  AND sn.is_expired = false
+ORDER BY sn.created_at ASC
 `
 
 type GetAgentNotificationsRow struct {
 	ID               pgtype.UUID        `json:"id"`
 	SessionID        pgtype.UUID        `json:"session_id"`
 	AgentID          pgtype.UUID        `json:"agent_id"`
-	IsRead           bool               `json:"is_read"`
-	IsExpired        bool               `json:"is_expired"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	UserName         string             `json:"user_name"`
-	UserEmail        string             `json:"user_email"`
 	Subject          string             `json:"subject"`
 	SessionCreatedAt pgtype.Timestamptz `json:"session_created_at"`
+	UserName         string             `json:"user_name"`
 }
 
 func (q *Queries) GetAgentNotifications(ctx context.Context, agentID pgtype.UUID) ([]GetAgentNotificationsRow, error) {
@@ -162,14 +164,10 @@ func (q *Queries) GetAgentNotifications(ctx context.Context, agentID pgtype.UUID
 			&i.ID,
 			&i.SessionID,
 			&i.AgentID,
-			&i.IsRead,
-			&i.IsExpired,
 			&i.CreatedAt,
-			&i.UserID,
-			&i.UserName,
-			&i.UserEmail,
 			&i.Subject,
 			&i.SessionCreatedAt,
+			&i.UserName,
 		); err != nil {
 			return nil, err
 		}
@@ -258,6 +256,50 @@ func (q *Queries) GetOpenSessionForUser(ctx context.Context, userID pgtype.UUID)
 	return i, err
 }
 
+const getSessionWithUserByID = `-- name: GetSessionWithUserByID :one
+SELECT
+    ss.id, ss.user_id, ss.subject, ss.status,
+    ss.assigned_agent_id, ss.created_at, ss.updated_at,
+    ss.assigned_at, ss.closed_at,
+    u.user_name, u.email as user_email
+FROM support_sessions ss
+JOIN users u ON ss.user_id = u.id
+WHERE ss.id = $1
+`
+
+type GetSessionWithUserByIDRow struct {
+	ID              pgtype.UUID        `json:"id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	Subject         string             `json:"subject"`
+	Status          string             `json:"status"`
+	AssignedAgentID pgtype.UUID        `json:"assigned_agent_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	AssignedAt      pgtype.Timestamptz `json:"assigned_at"`
+	ClosedAt        pgtype.Timestamptz `json:"closed_at"`
+	UserName        string             `json:"user_name"`
+	UserEmail       string             `json:"user_email"`
+}
+
+func (q *Queries) GetSessionWithUserByID(ctx context.Context, id pgtype.UUID) (GetSessionWithUserByIDRow, error) {
+	row := q.db.QueryRow(ctx, getSessionWithUserByID, id)
+	var i GetSessionWithUserByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Subject,
+		&i.Status,
+		&i.AssignedAgentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AssignedAt,
+		&i.ClosedAt,
+		&i.UserName,
+		&i.UserEmail,
+	)
+	return i, err
+}
+
 const getSupportSessionByID = `-- name: GetSupportSessionByID :one
 SELECT id, user_id, assigned_agent_id, subject, status, created_at, updated_at, assigned_at, closed_at FROM support_sessions WHERE id = $1
 `
@@ -277,6 +319,30 @@ func (q *Queries) GetSupportSessionByID(ctx context.Context, id pgtype.UUID) (Su
 		&i.ClosedAt,
 	)
 	return i, err
+}
+
+const listAgentUserIDs = `-- name: ListAgentUserIDs :many
+SELECT id FROM users WHERE role = 'agent'
+`
+
+func (q *Queries) ListAgentUserIDs(ctx context.Context) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listAgentUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAllSessionsWithUser = `-- name: ListAllSessionsWithUser :many
@@ -372,7 +438,7 @@ func (q *Queries) ListSessionMessages(ctx context.Context, sessionID pgtype.UUID
 
 const markNotificationAsRead = `-- name: MarkNotificationAsRead :exec
 UPDATE session_notifications
-SET is_read = TRUE
+SET is_read = true
 WHERE id = $1 AND agent_id = $2
 `
 

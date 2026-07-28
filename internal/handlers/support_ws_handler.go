@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
@@ -13,31 +13,24 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/joho/godotenv"
 )
 
 type SupportWSHandler struct {
-	Hub     *ws.SupportHub
-	Queries *gen.Queries
+	Hub       *ws.SupportHub
+	Queries   *gen.Queries
+	JWTSecret string
 }
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true }, // adjust for production
+	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func validateToken(tokenStr string) (uuid.UUID, string, error) {
-	// Load .env (same as auth service)
-	godotenv.Load()
-
-	// ✅ Use same secret as GenerateAccessToken
-	secret := os.Getenv("JWT_ACCESS_SECRET")
-
+func (h *SupportWSHandler) validateToken(tokenStr string) (uuid.UUID, string, error) {
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Ensure token method is HMAC (same as auth service)
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(secret), nil // ✅ Convert to []byte same as auth service
+		return []byte(h.JWTSecret), nil
 	})
 	if err != nil {
 		return uuid.Nil, "", fmt.Errorf("invalid token: %w", err)
@@ -65,45 +58,60 @@ func validateToken(tokenStr string) (uuid.UUID, string, error) {
 
 	return userID, role, nil
 }
+
 func (h *SupportWSHandler) HandleWebSocket(c *gin.Context) {
-    // 1. Extract token
-    token := c.Query("token")
-    if token == "" {
-        authHeader := c.GetHeader("Authorization")
-        if strings.HasPrefix(authHeader, "Bearer ") {
-            token = strings.TrimPrefix(authHeader, "Bearer ")
-        }
-    }
-    if token == "" {
-        service.AbortWithError(c, http.StatusUnauthorized, "missing token")
-        return
-    }
+	log.Println("━━━━━━━━━━ WS REQUEST START ━━━━━━━━━━")
+	token := c.Query("token")
+	if token == "" {
+		authHeader := c.GetHeader("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
 
-    // 2. Validate token AND capture the role
-    userID, role, err := validateToken(token)   // ✅ capture role
-    if err != nil {
-        service.AbortWithError(c, http.StatusUnauthorized, "invalid token")
-        return
-    }
+	if token == "" {
+		log.Println("❌ WS rejected: missing token")
+		service.AbortWithError(c, http.StatusUnauthorized, "missing token")
+		return
+	}
 
-    sessionID := c.Query("session_id")
+	masked := token
+	if len(masked) > 10 {
+		masked = masked[:10] + "..."
+	}
+	log.Printf("🔑 WS token: %s", masked)
 
-    conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-    if err != nil {
-        return
-    }
+	userID, role, err := h.validateToken(token)
+	if err != nil {
+		log.Printf("❌ WS auth failed: %v", err)
+		service.AbortWithError(c, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	log.Printf("✅ WS authenticated user=%s role=%s", userID, role)
 
-    client := &ws.SupportClient{
-        Hub:       h.Hub,
-        UserID:    userID.String(),
-        IsAgent:   role == "agent" || role == "admin",   // ✅ directly from JWT
-        SessionID: sessionID,
-        Conn:      conn,
-        Send:      make(chan *ws.WebSocketMessage, 256),
-    }
+	sessionID := c.Query("session_id")
+	log.Printf("🧩 WS session_id=%q", sessionID)
 
-    h.Hub.Register <- client
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("💥 WS upgrade error: %v", err)
+		return
+	}
+	log.Printf("✅ WebSocket upgraded for user=%s", userID)
 
-    go client.WritePump()
-    go client.ReadPump()
+	client := &ws.SupportClient{
+		Hub:       h.Hub,
+		UserID:    userID.String(),
+		IsAgent:   role == "agent" || role == "admin",
+		SessionID: sessionID,
+		Conn:      conn,
+		Send:      make(chan *ws.WebSocketMessage, 256),
+	}
+
+	h.Hub.Register <- client
+	log.Printf("📨 Client %s registered to hub", userID)
+
+	go client.WritePump()
+	go client.ReadPump()
+	log.Printf("🚀 Goroutines started for user %s", userID)
 }

@@ -19,7 +19,15 @@ FROM support_sessions ss
 JOIN users u ON ss.user_id = u.id
 WHERE ss.status = 'open' AND ss.assigned_agent_id IS NULL
 ORDER BY ss.created_at ASC;
-
+-- name: GetSessionWithUserByID :one
+SELECT
+    ss.id, ss.user_id, ss.subject, ss.status,
+    ss.assigned_agent_id, ss.created_at, ss.updated_at,
+    ss.assigned_at, ss.closed_at,
+    u.user_name, u.email as user_email
+FROM support_sessions ss
+JOIN users u ON ss.user_id = u.id
+WHERE ss.id = $1;
 -- name: AssignAgentToSession :one
 UPDATE support_sessions
 SET assigned_agent_id = $1,
@@ -39,32 +47,6 @@ SELECT * FROM support_messages
 WHERE session_id = $1
 ORDER BY created_at ASC;
 
--- name: CreateSessionNotification :one
-INSERT INTO session_notifications (session_id, agent_id)
-VALUES ($1, $2)
-RETURNING *;
-
--- name: GetAgentNotifications :many
-SELECT sn.*, ss.user_id, u.user_name, u.email as user_email,
-       ss.subject, ss.created_at as session_created_at
-FROM session_notifications sn
-JOIN support_sessions ss ON sn.session_id = ss.id
-JOIN users u ON ss.user_id = u.id
-WHERE sn.agent_id = $1
-  AND sn.is_read = FALSE
-  AND sn.is_expired = FALSE
-ORDER BY ss.created_at DESC;
-
--- name: MarkNotificationAsRead :exec
-UPDATE session_notifications
-SET is_read = TRUE
-WHERE id = $1 AND agent_id = $2;
-
--- name: ExpireAllNotifications :execrows
-UPDATE session_notifications
-SET is_expired = TRUE, is_read = TRUE
-WHERE session_id = $1 AND is_expired = FALSE;
-
 -- name: ListAllSessionsWithUser :many
 SELECT 
     ss.id, ss.user_id, ss.subject, ss.status,
@@ -79,3 +61,38 @@ ORDER BY ss.created_at DESC;
 UPDATE support_sessions
 SET status = 'closed', closed_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND status = 'assigned';
+
+-- name: ListAgentUserIDs :many
+SELECT id FROM users WHERE role = 'agent';
+
+-- name: CreateSessionNotification :one
+INSERT INTO session_notifications (session_id, agent_id)
+VALUES ($1, $2)
+RETURNING *;
+
+-- name: GetAgentNotifications :many
+SELECT
+    sn.id,
+    sn.session_id,
+    sn.agent_id,
+    sn.created_at,
+    ss.subject,
+    ss.created_at AS session_created_at,
+    u.user_name
+FROM session_notifications sn
+JOIN support_sessions ss ON ss.id = sn.session_id
+JOIN users u ON u.id = ss.user_id
+WHERE sn.agent_id = $1
+  AND sn.is_read = false
+  AND sn.is_expired = false
+ORDER BY sn.created_at ASC;
+
+-- name: MarkNotificationAsRead :exec
+UPDATE session_notifications
+SET is_read = true
+WHERE id = $1 AND agent_id = $2;
+
+-- name: ExpireAllNotifications :execrows
+UPDATE session_notifications
+SET is_expired = TRUE, is_read = TRUE
+WHERE session_id = $1 AND is_expired = FALSE;

@@ -50,7 +50,6 @@ SELECT COUNT(*) FROM users WHERE role = 'agent';
 
 
 
-
 -- name: GetPlatformSetting :one
 SELECT value FROM platform_settings WHERE key = $1;
 
