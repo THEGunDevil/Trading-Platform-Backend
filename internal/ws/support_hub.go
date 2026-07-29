@@ -648,3 +648,16 @@ func (c *SupportClient) WritePump() {
 		log.Printf("✉️  Sent %s to user %s", msg.Type, c.UserID)
 	}
 }
+// BroadcastToSession sends a message to all connected clients in the given session.
+func (h *SupportHub) BroadcastToSession(sessionID string, msg *WebSocketMessage) {
+    h.mu.RLock()
+    defer h.mu.RUnlock()
+    if clients, ok := h.sessionClients[sessionID]; ok {
+        for _, c := range clients {
+            select {
+            case c.Send <- msg:
+            default:
+            }
+        }
+    }
+}

@@ -109,6 +109,21 @@ func (q *Queries) CreateSupportSession(ctx context.Context, arg CreateSupportSes
 	return i, err
 }
 
+const deleteMessage = `-- name: DeleteMessage :exec
+DELETE FROM support_messages
+WHERE id = $1 AND sender_id = $2
+`
+
+type DeleteMessageParams struct {
+	ID       pgtype.UUID `json:"id"`
+	SenderID pgtype.UUID `json:"sender_id"`
+}
+
+func (q *Queries) DeleteMessage(ctx context.Context, arg DeleteMessageParams) error {
+	_, err := q.db.Exec(ctx, deleteMessage, arg.ID, arg.SenderID)
+	return err
+}
+
 const expireAllNotifications = `-- name: ExpireAllNotifications :execrows
 UPDATE session_notifications
 SET is_expired = TRUE, is_read = TRUE
@@ -300,6 +315,25 @@ func (q *Queries) GetSessionWithUserByID(ctx context.Context, id pgtype.UUID) (G
 	return i, err
 }
 
+const getSupportMessageByID = `-- name: GetSupportMessageByID :one
+SELECT id, session_id, sender_id, content, image_url, is_agent, created_at FROM support_messages WHERE id = $1
+`
+
+func (q *Queries) GetSupportMessageByID(ctx context.Context, id pgtype.UUID) (SupportMessage, error) {
+	row := q.db.QueryRow(ctx, getSupportMessageByID, id)
+	var i SupportMessage
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SenderID,
+		&i.Content,
+		&i.ImageUrl,
+		&i.IsAgent,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getSupportSessionByID = `-- name: GetSupportSessionByID :one
 SELECT id, user_id, assigned_agent_id, subject, status, created_at, updated_at, assigned_at, closed_at FROM support_sessions WHERE id = $1
 `
@@ -473,6 +507,40 @@ func (q *Queries) SendSupportMessage(ctx context.Context, arg SendSupportMessage
 		arg.Content,
 		arg.ImageUrl,
 		arg.IsAgent,
+	)
+	var i SupportMessage
+	err := row.Scan(
+		&i.ID,
+		&i.SessionID,
+		&i.SenderID,
+		&i.Content,
+		&i.ImageUrl,
+		&i.IsAgent,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateMessage = `-- name: UpdateMessage :one
+UPDATE support_messages
+SET content = $2, image_url = $3
+WHERE id = $1 AND sender_id = $4
+RETURNING id, session_id, sender_id, content, image_url, is_agent, created_at
+`
+
+type UpdateMessageParams struct {
+	ID       pgtype.UUID `json:"id"`
+	Content  pgtype.Text `json:"content"`
+	ImageUrl pgtype.Text `json:"image_url"`
+	SenderID pgtype.UUID `json:"sender_id"`
+}
+
+func (q *Queries) UpdateMessage(ctx context.Context, arg UpdateMessageParams) (SupportMessage, error) {
+	row := q.db.QueryRow(ctx, updateMessage,
+		arg.ID,
+		arg.Content,
+		arg.ImageUrl,
+		arg.SenderID,
 	)
 	var i SupportMessage
 	err := row.Scan(

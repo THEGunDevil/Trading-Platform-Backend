@@ -30,8 +30,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.Connect(cfg)
-	// db.LocalConnect(cfg) // use local connect for development
+	// db.Connect(cfg)
+	db.LocalConnect(cfg) // use local connect for development
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
@@ -152,6 +152,8 @@ func registerRoutes(
 		support.POST("/sessions", supportRest.CreateSession)
 		support.GET("/sessions/:id/messages", supportRest.GetMessages)
 		support.GET("/sessions/open", supportRest.GetOpenSession)
+		support.PATCH("/messages/:id", supportRest.UpdateMessage)
+		support.DELETE("/messages/:id", supportRest.DeleteMessage)
 	}
 
 	// Agent routes (protected)

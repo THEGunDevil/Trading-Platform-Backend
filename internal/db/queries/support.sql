@@ -7,7 +7,8 @@ RETURNING *;
 
 -- name: GetSupportSessionByID :one
 SELECT * FROM support_sessions WHERE id = $1;
-
+-- name: GetSupportMessageByID :one
+SELECT * FROM support_messages WHERE id = $1;
 -- name: GetOpenSessionForUser :one
 SELECT * FROM support_sessions
 WHERE user_id = $1 AND status IN ('open', 'assigned')
@@ -96,3 +97,14 @@ WHERE id = $1 AND agent_id = $2;
 UPDATE session_notifications
 SET is_expired = TRUE, is_read = TRUE
 WHERE session_id = $1 AND is_expired = FALSE;
+
+
+-- name: UpdateMessage :one
+UPDATE support_messages
+SET content = $2, image_url = $3
+WHERE id = $1 AND sender_id = $4
+RETURNING *;
+
+-- name: DeleteMessage :exec
+DELETE FROM support_messages
+WHERE id = $1 AND sender_id = $2;
