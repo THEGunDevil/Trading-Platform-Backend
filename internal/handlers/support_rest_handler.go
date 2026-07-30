@@ -58,9 +58,9 @@ func (h *SupportRestHandler) CreateSession(c *gin.Context) {
 
     // Extract user name from context or fetch from DB
     var userName string
-    user, err := h.Queries.GetUserByID(c.Request.Context(), service.UUIDToPGType(userID))
-    if err == nil && user.UserName != "" {
-        userName = user.UserName
+    UserName, err := h.Queries.GetUserNameByID(c.Request.Context(), service.UUIDToPGType(userID))
+    if err == nil && UserName != "" {
+        userName = UserName
     }
 
     // Notify agents only for truly new sessions
@@ -103,7 +103,6 @@ func (h *SupportRestHandler) GetMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, messages)
 }
 
-// PATCH /support/messages/:id
 // PATCH /support/messages/:id
 func (h *SupportRestHandler) UpdateMessage(c *gin.Context) {
 	userID, ok := service.UserIDFromContext(c)

@@ -30,8 +30,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.Connect(cfg)
-	// db.LocalConnect(cfg) // use local connect for development
+	// db.Connect(cfg)
+	db.LocalConnect(cfg) // use local connect for development
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
@@ -225,6 +225,7 @@ func registerRoutes(
 		adminHandler := handlers.NewAdminHandler(store.Queries)
 
 		adminGroup.GET("/dashboard", adminHandler.GetAdminDashboard)
+		adminGroup.POST("/deposit", adminHandler.AdminDeposit)
 		adminGroup.GET("/users", adminHandler.GetUsersHandler)
 		adminGroup.GET("/users/agents", adminHandler.GetAgentUsersHandler)
 		adminGroup.GET("/users/banned", adminHandler.GetBannedUsersHandler)

@@ -564,3 +564,49 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "user role updated successfully"})
 }
+// POST /admin/deposit
+func (h *AdminHandler) AdminDeposit(c *gin.Context) {
+    var req struct {
+        UserID string `json:"user_id" binding:"required"`
+        Amount string `json:"amount" binding:"required"`
+        Asset  string `json:"asset" binding:"required"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        service.AbortWithError(c, http.StatusBadRequest, "invalid request")
+        return
+    }
+
+    userID, err := uuid.Parse(req.UserID)
+    if err != nil {
+        service.AbortWithError(c, http.StatusBadRequest, "invalid user id")
+        return
+    }
+
+    amountNumeric, err := service.StringToNumeric(req.Amount)
+    if err != nil {
+        service.AbortWithError(c, http.StatusBadRequest, "invalid amount")
+        return
+    }
+
+    // Upsert balance (creates row if it doesn't exist, then adds)
+    _, err = h.Queries.UpsertBalance(c.Request.Context(), gen.UpsertBalanceParams{
+        UserID: service.UUIDToPGType(userID),
+        Asset:  req.Asset,
+    })
+    if err != nil {
+        service.AbortWithError(c, http.StatusInternalServerError, "failed to upsert balance")
+        return
+    }
+
+    _, err = h.Queries.IncreaseAvailableBalance(c.Request.Context(), gen.IncreaseAvailableBalanceParams{
+        UserID:    service.UUIDToPGType(userID),
+        Asset:     req.Asset,
+        Available: amountNumeric,
+    })
+    if err != nil {
+        service.AbortWithError(c, http.StatusInternalServerError, "failed to deposit")
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Deposit successful"})
+}

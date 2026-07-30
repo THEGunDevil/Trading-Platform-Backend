@@ -153,6 +153,17 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 	return i, err
 }
 
+const getUserNameByID = `-- name: GetUserNameByID :one
+SELECT user_name FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserNameByID(ctx context.Context, id pgtype.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getUserNameByID, id)
+	var user_name string
+	err := row.Scan(&user_name)
+	return user_name, err
+}
+
 const incrementTokenVersion = `-- name: IncrementTokenVersion :exec
 UPDATE users SET token_version = token_version + 1 WHERE id = $1
 `
