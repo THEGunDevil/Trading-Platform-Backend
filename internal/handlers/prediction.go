@@ -297,7 +297,6 @@ func CancelPrediction(c *gin.Context) {
 // schedulePredictionResolution runs in background goroutine
 func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, duration time.Duration) {
 	time.Sleep(duration)
-
 	prediction, err := db.Q.GetPredictionByID(context.Background(), gen.GetPredictionByIDParams{
 		ID:     predictionID,
 		UserID: userID,
@@ -306,7 +305,11 @@ func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, 
 		log.Printf("resolution skipped for %v: err=%v status=%v", predictionID, err, prediction.Status)
 		return
 	}
-
+	wp, err := db.Q.GetUserWillProfit(context.Background(), userID)
+	if err != nil {
+		log.Printf("there was a problem fetching wp:%v", err.Error())
+		return
+	}
 	// Get final price
 	finalPrice, err := service.GetCurrentPrice(prediction.Symbol)
 	if err != nil {
@@ -318,14 +321,23 @@ func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, 
 		log.Printf("invalid price: %v", err)
 		return
 	}
+
 	startPrice := service.NumericToFloat64(prediction.StartPrice)
 
-	isWin := false
-	if prediction.Direction == "up" {
-		isWin = finalPrice > startPrice
+	var isWin bool
+
+	if wp.Bool {
+		// Admin forced win
+		isWin = true
 	} else {
-		isWin = finalPrice < startPrice
+		// Normal prediction logic
+		if prediction.Direction == "up" {
+			isWin = finalPrice > startPrice
+		} else {
+			isWin = finalPrice < startPrice
+		}
 	}
+
 
 	status := "lost"
 	if isWin {

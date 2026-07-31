@@ -76,7 +76,7 @@ func (q *Queries) CountUsersByEmail(ctx context.Context, dollar_1 interface{}) (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (user_name, email, password_hash)
 VALUES ($1, $2, $3)
-RETURNING id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban
+RETURNING id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, will_profit, ban_reason, ban_until, is_permanent_ban
 `
 
 type CreateUserParams struct {
@@ -98,6 +98,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.TokenVersion,
 		&i.IsBanned,
+		&i.WillProfit,
 		&i.BanReason,
 		&i.BanUntil,
 		&i.IsPermanentBan,
@@ -106,7 +107,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban FROM users WHERE email = $1
+SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, will_profit, ban_reason, ban_until, is_permanent_ban FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -122,6 +123,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.TokenVersion,
 		&i.IsBanned,
+		&i.WillProfit,
 		&i.BanReason,
 		&i.BanUntil,
 		&i.IsPermanentBan,
@@ -130,7 +132,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban FROM users WHERE id = $1
+SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, will_profit, ban_reason, ban_until, is_permanent_ban FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -146,6 +148,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error)
 		&i.UpdatedAt,
 		&i.TokenVersion,
 		&i.IsBanned,
+		&i.WillProfit,
 		&i.BanReason,
 		&i.BanUntil,
 		&i.IsPermanentBan,
@@ -232,7 +235,7 @@ func (q *Queries) ListBannedUsersPaginated(ctx context.Context, arg ListBannedUs
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, will_profit, ban_reason, ban_until, is_permanent_ban FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListUsersParams struct {
@@ -259,6 +262,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.UpdatedAt,
 			&i.TokenVersion,
 			&i.IsBanned,
+			&i.WillProfit,
 			&i.BanReason,
 			&i.BanUntil,
 			&i.IsPermanentBan,
@@ -274,7 +278,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 }
 
 const listUsersPaginated = `-- name: ListUsersPaginated :many
-SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban FROM users
+SELECT id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, will_profit, ban_reason, ban_until, is_permanent_ban FROM users
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
 `
@@ -303,69 +307,10 @@ func (q *Queries) ListUsersPaginated(ctx context.Context, arg ListUsersPaginated
 			&i.UpdatedAt,
 			&i.TokenVersion,
 			&i.IsBanned,
+			&i.WillProfit,
 			&i.BanReason,
 			&i.BanUntil,
 			&i.IsPermanentBan,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const searchUsers = `-- name: SearchUsers :many
-SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
-FROM users
-WHERE user_name ILIKE '%' || $1 || '%'
-   OR email ILIKE '%' || $1 || '%'
-   OR role ILIKE '%' || $1 || '%'
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
-`
-
-type SearchUsersParams struct {
-	Column1 pgtype.Text `json:"column_1"`
-	Limit   int32       `json:"limit"`
-	Offset  int32       `json:"offset"`
-}
-
-type SearchUsersRow struct {
-	ID             pgtype.UUID      `json:"id"`
-	UserName       string           `json:"user_name"`
-	Email          string           `json:"email"`
-	Role           pgtype.Text      `json:"role"`
-	IsBanned       pgtype.Bool      `json:"is_banned"`
-	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`
-	BanReason      pgtype.Text      `json:"ban_reason"`
-	BanUntil       pgtype.Timestamp `json:"ban_until"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	TokenVersion   int32            `json:"token_version"`
-}
-
-func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error) {
-	rows, err := q.db.Query(ctx, searchUsers, arg.Column1, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []SearchUsersRow
-	for rows.Next() {
-		var i SearchUsersRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserName,
-			&i.Email,
-			&i.Role,
-			&i.IsBanned,
-			&i.IsPermanentBan,
-			&i.BanReason,
-			&i.BanUntil,
-			&i.CreatedAt,
-			&i.TokenVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -409,7 +354,7 @@ SET
   user_name            = COALESCE($1, user_name),
   updated_at            = NOW()
 WHERE id = $2
-RETURNING id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, ban_reason, ban_until, is_permanent_ban
+RETURNING id, user_name, email, password_hash, role, created_at, updated_at, token_version, is_banned, will_profit, ban_reason, ban_until, is_permanent_ban
 `
 
 type UpdateUserProfileParams struct {
@@ -434,6 +379,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.UpdatedAt,
 		&i.TokenVersion,
 		&i.IsBanned,
+		&i.WillProfit,
 		&i.BanReason,
 		&i.BanUntil,
 		&i.IsPermanentBan,

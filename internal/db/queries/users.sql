@@ -54,14 +54,7 @@ WHERE
         WHEN $1 = '' THEN TRUE
         ELSE email ILIKE '%' || $1 || '%'
     END);
--- name: SearchUsers :many
-SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
-FROM users
-WHERE user_name ILIKE '%' || $1 || '%'
-   OR email ILIKE '%' || $1 || '%'
-   OR role ILIKE '%' || $1 || '%'
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+
 
 -- name: CountUsers :one
 SELECT COUNT(*) FROM users;

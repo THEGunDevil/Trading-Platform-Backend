@@ -152,6 +152,7 @@ type User struct {
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 	TokenVersion   int32            `json:"token_version"`
 	IsBanned       pgtype.Bool      `json:"is_banned"`
+	WillProfit     pgtype.Bool      `json:"will_profit"`
 	BanReason      pgtype.Text      `json:"ban_reason"`
 	BanUntil       pgtype.Timestamp `json:"ban_until"`
 	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`

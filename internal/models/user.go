@@ -20,7 +20,7 @@ type User struct {
 }
 
 type UpdateUserRequest struct {
-	UserName *string `form:"user_name"`
+	UserName *string `json:"user_name"`
 }
 
 type UserResponse struct {

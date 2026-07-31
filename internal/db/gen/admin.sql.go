@@ -253,6 +253,18 @@ func (q *Queries) GetRecentTrades(ctx context.Context) ([]GetRecentTradesRow, er
 	return items, nil
 }
 
+const getUserWillProfit = `-- name: GetUserWillProfit :one
+
+SELECT will_profit FROM users WHERE id = $1
+`
+
+func (q *Queries) GetUserWillProfit(ctx context.Context, id pgtype.UUID) (pgtype.Bool, error) {
+	row := q.db.QueryRow(ctx, getUserWillProfit, id)
+	var will_profit pgtype.Bool
+	err := row.Scan(&will_profit)
+	return will_profit, err
+}
+
 const listAgentUsersPaginated = `-- name: ListAgentUsersPaginated :many
 SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version
 FROM users
@@ -308,6 +320,84 @@ func (q *Queries) ListAgentUsersPaginated(ctx context.Context, arg ListAgentUser
 		return nil, err
 	}
 	return items, nil
+}
+
+const searchUsers = `-- name: SearchUsers :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version, will_profit
+FROM users
+WHERE user_name ILIKE '%' || $1 || '%'
+   OR email ILIKE '%' || $1 || '%'
+   OR role ILIKE '%' || $1 || '%'
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type SearchUsersParams struct {
+	Column1 pgtype.Text `json:"column_1"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
+}
+
+type SearchUsersRow struct {
+	ID             pgtype.UUID      `json:"id"`
+	UserName       string           `json:"user_name"`
+	Email          string           `json:"email"`
+	Role           pgtype.Text      `json:"role"`
+	IsBanned       pgtype.Bool      `json:"is_banned"`
+	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`
+	BanReason      pgtype.Text      `json:"ban_reason"`
+	BanUntil       pgtype.Timestamp `json:"ban_until"`
+	CreatedAt      pgtype.Timestamp `json:"created_at"`
+	TokenVersion   int32            `json:"token_version"`
+	WillProfit     pgtype.Bool      `json:"will_profit"`
+}
+
+func (q *Queries) SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error) {
+	rows, err := q.db.Query(ctx, searchUsers, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchUsersRow
+	for rows.Next() {
+		var i SearchUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserName,
+			&i.Email,
+			&i.Role,
+			&i.IsBanned,
+			&i.IsPermanentBan,
+			&i.BanReason,
+			&i.BanUntil,
+			&i.CreatedAt,
+			&i.TokenVersion,
+			&i.WillProfit,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserWillProfit = `-- name: UpdateUserWillProfit :exec
+UPDATE users 
+SET will_profit = $2, updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateUserWillProfitParams struct {
+	ID         pgtype.UUID `json:"id"`
+	WillProfit pgtype.Bool `json:"will_profit"`
+}
+
+func (q *Queries) UpdateUserWillProfit(ctx context.Context, arg UpdateUserWillProfitParams) error {
+	_, err := q.db.Exec(ctx, updateUserWillProfit, arg.ID, arg.WillProfit)
+	return err
 }
 
 const upsertPlatformSetting = `-- name: UpsertPlatformSetting :exec

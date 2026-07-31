@@ -11,6 +11,7 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT NOW(),
     token_version INT NOT NULL DEFAULT 1,
     is_banned BOOLEAN DEFAULT FALSE,
+    will_profit BOOLEAN DEFAULT FALSE,
     ban_reason TEXT,
     ban_until TIMESTAMP,
     is_permanent_ban BOOLEAN DEFAULT FALSE

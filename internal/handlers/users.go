@@ -66,8 +66,6 @@ func GetUsersHandler(c *gin.Context) {
 			BanReason:      user.BanReason.String,
 			IsPermanentBan: user.IsPermanentBan.Bool,
 			CreatedAt:      user.CreatedAt.Time,
-
-			// 👈 optional: add field to struct
 		})
 	}
 

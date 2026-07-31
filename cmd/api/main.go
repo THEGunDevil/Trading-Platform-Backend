@@ -20,7 +20,6 @@ import (
 )
 
 func main() {
-	// Load .env file early so all os.Getenv calls can read from it
 	_ = godotenv.Load()
 
 	// ── Environment ────────────────────────────────────────────────────────────
@@ -30,8 +29,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	db.Connect(cfg)
-	// db.LocalConnect(cfg) // use local connect for development
+	// db.Connect(cfg)
+	db.LocalConnect(cfg) // use local connect for development
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
@@ -244,5 +243,6 @@ func registerRoutes(
 		adminSettingsHandler := handlers.NewAdminSettingsHandler(store.Queries)
 		adminGroup.GET("/settings/deposit-address", adminSettingsHandler.GetDepositAddress)
 		adminGroup.PUT("/settings/deposit-address", adminSettingsHandler.UpdateDepositAddress)
+		adminGroup.PATCH("/settings/will-profit/:id", adminSettingsHandler.UpdateWillProfitHandler)
 	}
 }

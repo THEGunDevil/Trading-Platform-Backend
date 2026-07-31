@@ -58,3 +58,20 @@ INSERT INTO platform_settings (key, value, updated_at)
 VALUES ($1, $2, NOW())
 ON CONFLICT (key)
 DO UPDATE SET value = $2, updated_at = NOW();
+
+-- name: UpdateUserWillProfit :exec
+UPDATE users 
+SET will_profit = $2, updated_at = NOW()
+WHERE id = $1;
+-- name: GetUserWillProfit :one
+
+SELECT will_profit FROM users WHERE id = $1;
+
+-- name: SearchUsers :many
+SELECT id, user_name, email, role, is_banned, is_permanent_ban, ban_reason, ban_until, created_at, token_version, will_profit
+FROM users
+WHERE user_name ILIKE '%' || $1 || '%'
+   OR email ILIKE '%' || $1 || '%'
+   OR role ILIKE '%' || $1 || '%'
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3;
