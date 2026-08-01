@@ -29,8 +29,8 @@ func main() {
 
 	// ── Database ───────────────────────────────────────────────────────────────
 	cfg := config.LoadConfig()
-	// db.Connect(cfg)
-	db.LocalConnect(cfg) // use local connect for development
+	db.Connect(cfg)
+	// db.LocalConnect(cfg) // use local connect for development
 	defer db.Close()
 
 	// ── Store ──────────────────────────────────────────────────────────────────
