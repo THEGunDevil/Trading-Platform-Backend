@@ -21,12 +21,14 @@ type User struct {
 
 type UpdateUserRequest struct {
 	UserName *string `json:"user_name"`
+	Password *string `json:"password"`
 }
 
 type UserResponse struct {
-	ID             uuid.UUID  `json:"id"`
-	UserName       string     `json:"user_name"`
-	Email          string     `json:"email"`
+	ID       uuid.UUID `json:"id"`
+	UserName string    `json:"user_name"`
+	Email    string    `json:"email"`
+	Role     string    `json:"role"`
 	CreatedAt      time.Time  `json:"created_at"`
 	TokenVersion   int        `json:"token_version"` // added
 	IsBanned       bool       `json:"is_banned"`

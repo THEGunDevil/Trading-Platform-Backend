@@ -11,6 +11,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCompletedWithdrawals = `-- name: CountCompletedWithdrawals :one
+SELECT COUNT(*) FROM withdrawals WHERE status = 'completed'
+`
+
+func (q *Queries) CountCompletedWithdrawals(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countCompletedWithdrawals)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countPendingWithdrawals = `-- name: CountPendingWithdrawals :one
+SELECT COUNT(*) FROM withdrawals WHERE status = 'pending'
+`
+
+func (q *Queries) CountPendingWithdrawals(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countPendingWithdrawals)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countRejectedWithdrawals = `-- name: CountRejectedWithdrawals :one
+SELECT COUNT(*) FROM withdrawals WHERE status = 'rejected'
+`
+
+func (q *Queries) CountRejectedWithdrawals(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countRejectedWithdrawals)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createWithdrawal = `-- name: CreateWithdrawal :one
 INSERT INTO withdrawals (user_id, asset, network, destination_address, amount, fee, status)
 VALUES ($1, $2, $3, $4, $5, $6, 'pending')
@@ -76,11 +109,16 @@ func (q *Queries) GetWithdrawalByID(ctx context.Context, id pgtype.UUID) (Withdr
 }
 
 const listCompletedWithdrawals = `-- name: ListCompletedWithdrawals :many
-SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'completed' ORDER BY created_at DESC
+SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'completed' ORDER BY created_at ASC LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) ListCompletedWithdrawals(ctx context.Context) ([]Withdrawal, error) {
-	rows, err := q.db.Query(ctx, listCompletedWithdrawals)
+type ListCompletedWithdrawalsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListCompletedWithdrawals(ctx context.Context, arg ListCompletedWithdrawalsParams) ([]Withdrawal, error) {
+	rows, err := q.db.Query(ctx, listCompletedWithdrawals, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -113,10 +151,16 @@ func (q *Queries) ListCompletedWithdrawals(ctx context.Context) ([]Withdrawal, e
 
 const listPendingWithdrawals = `-- name: ListPendingWithdrawals :many
 SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC
+LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) ListPendingWithdrawals(ctx context.Context) ([]Withdrawal, error) {
-	rows, err := q.db.Query(ctx, listPendingWithdrawals)
+type ListPendingWithdrawalsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListPendingWithdrawals(ctx context.Context, arg ListPendingWithdrawalsParams) ([]Withdrawal, error) {
+	rows, err := q.db.Query(ctx, listPendingWithdrawals, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -148,11 +192,16 @@ func (q *Queries) ListPendingWithdrawals(ctx context.Context) ([]Withdrawal, err
 }
 
 const listRejectedWithdrawals = `-- name: ListRejectedWithdrawals :many
-SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'rejected' ORDER BY created_at DESC
+SELECT id, user_id, asset, network, destination_address, amount, fee, status, tx_hash, created_at, completed_at FROM withdrawals WHERE status = 'rejected' ORDER BY created_at ASC LIMIT $1 OFFSET $2
 `
 
-func (q *Queries) ListRejectedWithdrawals(ctx context.Context) ([]Withdrawal, error) {
-	rows, err := q.db.Query(ctx, listRejectedWithdrawals)
+type ListRejectedWithdrawalsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListRejectedWithdrawals(ctx context.Context, arg ListRejectedWithdrawalsParams) ([]Withdrawal, error) {
+	rows, err := q.db.Query(ctx, listRejectedWithdrawals, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

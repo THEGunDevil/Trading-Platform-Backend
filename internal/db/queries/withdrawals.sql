@@ -27,10 +27,18 @@ UPDATE withdrawals SET status = 'rejected' WHERE id = $1
 RETURNING *;
 
 -- name: ListPendingWithdrawals :many
-SELECT * FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC;
+SELECT * FROM withdrawals WHERE status = 'pending' ORDER BY created_at ASC
+LIMIT $1 OFFSET $2;
 
 -- name: ListCompletedWithdrawals :many
-SELECT * FROM withdrawals WHERE status = 'completed' ORDER BY created_at DESC;
+SELECT * FROM withdrawals WHERE status = 'completed' ORDER BY created_at ASC LIMIT $1 OFFSET $2;
 
 -- name: ListRejectedWithdrawals :many
-SELECT * FROM withdrawals WHERE status = 'rejected' ORDER BY created_at DESC;
+SELECT * FROM withdrawals WHERE status = 'rejected' ORDER BY created_at ASC LIMIT $1 OFFSET $2;
+
+-- name: CountPendingWithdrawals :one
+SELECT COUNT(*) FROM withdrawals WHERE status = 'pending';
+-- name: CountCompletedWithdrawals :one
+SELECT COUNT(*) FROM withdrawals WHERE status = 'completed';
+-- name: CountRejectedWithdrawals :one
+SELECT COUNT(*) FROM withdrawals WHERE status = 'rejected';

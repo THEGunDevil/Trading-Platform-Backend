@@ -237,8 +237,9 @@ func registerRoutes(
 		adminGroup.GET("/withdrawals/search", withdrawalHandler.SearchWithdrawals)
 		adminGroup.PATCH("/withdrawals/:id/approve", withdrawalHandler.ApproveWithdrawal)
 		adminGroup.PATCH("/withdrawals/:id/reject", withdrawalHandler.RejectWithdrawal)
-		adminGroup.GET("/withdrawals/completed", withdrawalHandler.ListCompletedWithdrawals)
-		adminGroup.GET("/withdrawals/rejected", withdrawalHandler.ListRejectedWithdrawals)
+		adminGroup.GET("/withdrawals/completed", withdrawalHandler.CompletedWithdrawals)
+		adminGroup.GET("/withdrawals/pending", withdrawalHandler.PendingWithdrawals)
+		adminGroup.GET("/withdrawals/rejected", withdrawalHandler.RejectedWithdrawals)
 
 		adminSettingsHandler := handlers.NewAdminSettingsHandler(store.Queries)
 		adminGroup.GET("/settings/deposit-address", adminSettingsHandler.GetDepositAddress)

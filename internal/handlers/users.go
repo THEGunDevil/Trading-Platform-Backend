@@ -80,27 +80,21 @@ func GetUsersHandler(c *gin.Context) {
 }
 
 func GetUserByIDHandler(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "userID not found in context"})
-		return
-	}
-
-	userUUID, ok := userIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid userID type"})
+	targetID, err := service.ParseUUIDParam(c, "id")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
 
 	// 1️⃣ Fetch user from DB
-	user, err := db.Q.GetUserByID(c.Request.Context(), pgtype.UUID{Bytes: userUUID, Valid: true})
+	user, err := db.Q.GetUserByID(c.Request.Context(), pgtype.UUID{Bytes: targetID, Valid: true})
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
 	// 2️⃣ Fetch balances for this user
-	balances, err := db.Q.ListBalances(c.Request.Context(), service.UUIDToPGType(userUUID))
+	balances, err := db.Q.ListBalances(c.Request.Context(), service.UUIDToPGType(targetID))
 	if err != nil {
 		balances = []gen.Balance{} // empty slice on error
 	}
@@ -111,16 +105,27 @@ func GetUserByIDHandler(c *gin.Context) {
 		log.Printf("⚠️ Failed to convert balances: %v", err)
 		balanceModels = []models.Balance{} // fallback
 	}
-
+	userRes := models.UserResponse{
+		ID:             user.ID.Bytes,
+		UserName:       user.UserName,
+		Email:          user.Email,
+		Role:           user.Role.String,
+		IsBanned:       user.IsBanned.Bool,
+		BanUntil:       &user.BanUntil.Time,
+		BanReason:      user.BanReason.String,
+		IsPermanentBan: user.IsPermanentBan.Bool,
+		CreatedAt:      user.CreatedAt.Time,
+	}
 	// 4️⃣ Build response
 	resp := gin.H{
-		"user":     user,
+		"user":     userRes,
 		"balances": balanceModels,
 	}
 
 	log.Printf("👤 Returning user data for user %v (banned: %v) with %d balances", user.ID, user.IsBanned.Bool, len(balanceModels))
 	c.JSON(http.StatusOK, resp)
 }
+
 // UpdateUserByIDHandler updates user by ID
 func UpdateUserByIDHandler(c *gin.Context) {
 	// Parse UUID

@@ -3,19 +3,21 @@ package models
 import (
 	"time"
 
+	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/google/uuid"
 )
 
 type CreateWithdrawalRequest struct {
-    Asset              string `json:"asset" binding:"required"`
-    Network            string `json:"network" binding:"required"`
-    DestinationAddress string `json:"destination_address" binding:"required"`
-    Amount             string `json:"amount" binding:"required"` // decimal string
-    Fee                string `json:"fee" binding:"required"`
+	Asset              string `json:"asset" binding:"required"`
+	Network            string `json:"network" binding:"required"`
+	DestinationAddress string `json:"destination_address" binding:"required"`
+	Amount             string `json:"amount" binding:"required"` // decimal string
+	Fee                string `json:"fee" binding:"required"`
 }
 
 type Withdrawal struct {
 	ID                 uuid.UUID  `json:"id"`
+	UserID             uuid.UUID  `json:"user_id"` // must have this exact tag
 	Asset              string     `json:"asset"`
 	Network            string     `json:"network"`
 	DestinationAddress string     `json:"destination_address"`
@@ -25,4 +27,20 @@ type Withdrawal struct {
 	TxHash             *string    `json:"tx_hash,omitempty"`
 	CreatedAt          time.Time  `json:"created_at"`
 	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+}
+
+func ToWithdrawalResponse(pw gen.Withdrawal) Withdrawal {
+	return Withdrawal{
+		ID:                 pw.ID.Bytes,
+		UserID:             pw.UserID.Bytes,
+		Asset:              pw.Asset,
+		Network:            pw.Network,
+		DestinationAddress: pw.DestinationAddress,
+		Amount:             convertNumericToString(pw.Amount),
+		Fee:                convertNumericToString(pw.Fee),
+		Status:             pw.Status,
+		TxHash:             &pw.TxHash.String,
+		CreatedAt:          pw.CreatedAt.Time,
+		CompletedAt:        &pw.CompletedAt.Time,
+	}
 }

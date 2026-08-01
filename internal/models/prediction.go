@@ -2,12 +2,14 @@
 package models
 
 import (
+	"math"
+	"math/big"
+	"strings"
+	"time"
+
 	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"math"
-	"math/big"
-	"time"
 )
 
 type PredictionRequest struct {
@@ -70,6 +72,32 @@ func convertNumericToFloat64(n pgtype.Numeric) float64 {
 
 	result, _ := f.Float64()
 	return result
+}
+func convertNumericToString(n pgtype.Numeric) string {
+	if !n.Valid || n.Int == nil {
+		return ""
+	}
+
+	// Get the integer digits as a string.
+	intStr := n.Int.String()
+
+	exp := n.Exp
+	if exp >= 0 {
+		// Positive exponent means the integer is already the whole number
+		// possibly with trailing zeros. Just append the zeros.
+		return intStr + strings.Repeat("0", int(exp))
+	}
+
+	// exp is negative -> decimal point shifted left.
+	scale := int(-exp)
+	if scale >= len(intStr) {
+		// Need to prefix with "0." and pad with leading zeros.
+		return "0." + strings.Repeat("0", scale-len(intStr)) + intStr
+	}
+
+	// Insert decimal point at the correct position.
+	decimalPos := len(intStr) - scale
+	return intStr[:decimalPos] + "." + intStr[decimalPos:]
 }
 func ToPredictionResponse(p gen.Prediction) PredictionResponse {
 	var finalPrice *float64
