@@ -52,7 +52,7 @@ func CheckPassword(password, hashed string) error {
 }
 
 // GenerateAccessToken generates a short-lived access token
-func GenerateAccessToken(userID, role string, tokenVersion int32) (string, error) {
+func GenerateAccessToken(userID, role string, tokenVersion int32, isBanned bool) (string, error) {
 	if len(accessSecret) == 0 {
 		return "", errors.New("access secret not initialized")
 	}
@@ -61,21 +61,22 @@ func GenerateAccessToken(userID, role string, tokenVersion int32) (string, error
 		"sub":           userID,
 		"role":          role,
 		"token_version": tokenVersion,
+		"is_banned":     isBanned, // ✅ new claim
 		"exp":           time.Now().Add(15 * time.Minute).Unix(),
 		"iat":           time.Now().Unix(),
 	}
-	
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString(accessSecret)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign access token: %w", err)
 	}
-	
+
 	return signedToken, nil
 }
 
 // GenerateRefreshToken generates a long-lived refresh token
-func GenerateRefreshToken(userID string, tokenVersion int32) (string, error) {
+func GenerateRefreshToken(userID string, tokenVersion int32, isBanned bool) (string, error) {
 	if len(refreshSecret) == 0 {
 		return "", errors.New("refresh secret not initialized")
 	}
@@ -83,16 +84,17 @@ func GenerateRefreshToken(userID string, tokenVersion int32) (string, error) {
 	claims := jwt.MapClaims{
 		"sub":           userID,
 		"token_version": tokenVersion,
+		"is_banned":     isBanned, // ✅ new claim
 		"exp":           time.Now().Add(7 * 24 * time.Hour).Unix(),
 		"iat":           time.Now().Unix(),
 	}
-	
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString(refreshSecret)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign refresh token: %w", err)
 	}
-	
+
 	return signedToken, nil
 }
 

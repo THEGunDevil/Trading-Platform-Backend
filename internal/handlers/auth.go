@@ -84,13 +84,13 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := service.GenerateAccessToken(user.ID.String(), user.Role.String, user.TokenVersion)
+	accessToken, err := service.GenerateAccessToken(user.ID.String(), user.Role.String, user.TokenVersion,user.IsBanned.Bool)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
 		return
 	}
 
-	refreshToken, err := service.GenerateRefreshToken(user.ID.String(), user.TokenVersion)
+	refreshToken, err := service.GenerateRefreshToken(user.ID.String(), user.TokenVersion,user.IsBanned.Bool)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
 		return
@@ -163,14 +163,14 @@ func RefreshHandler(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := service.GenerateAccessToken(userIDStr, user.Role.String, user.TokenVersion)
+	accessToken, err := service.GenerateAccessToken(userIDStr, user.Role.String, user.TokenVersion, user.IsBanned.Bool)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate new access token"})
 		return
 	}
 
 	// Renew refresh token
-	refreshToken, err := service.GenerateRefreshToken(userIDStr, user.TokenVersion)
+	refreshToken, err := service.GenerateRefreshToken(userIDStr, user.TokenVersion, user.IsBanned.Bool)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
 		return
