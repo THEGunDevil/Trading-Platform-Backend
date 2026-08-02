@@ -3,8 +3,8 @@ package models
 import (
 	"time"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/google/uuid"
+	gen "github.com/internal/db/gen"
 )
 
 type CreateWithdrawalRequest struct {

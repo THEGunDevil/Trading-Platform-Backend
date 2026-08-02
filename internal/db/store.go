@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
+	gen "github.com/internal/db/gen"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

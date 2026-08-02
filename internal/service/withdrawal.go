@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/models"
+	"github.com/internal/db"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/models"
 )
 
 var ErrWithdrawalBelowMinimum = errors.New("amount is below the minimum withdrawal")

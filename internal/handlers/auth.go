@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/models"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
+	"github.com/internal/db"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/models"
+	"github.com/internal/service"
 )
 
 // RegisterHandler handles user registration
@@ -84,13 +84,13 @@ func LoginHandler(c *gin.Context) {
 		return
 	}
 
-	accessToken, err := service.GenerateAccessToken(user.ID.String(), user.Role.String, user.TokenVersion,user.IsBanned.Bool)
+	accessToken, err := service.GenerateAccessToken(user.ID.String(), user.Role.String, user.TokenVersion, user.IsBanned.Bool)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate access token"})
 		return
 	}
 
-	refreshToken, err := service.GenerateRefreshToken(user.ID.String(), user.TokenVersion,user.IsBanned.Bool)
+	refreshToken, err := service.GenerateRefreshToken(user.ID.String(), user.TokenVersion, user.IsBanned.Bool)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate refresh token"})
 		return

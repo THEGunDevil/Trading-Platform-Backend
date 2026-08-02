@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/service"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )

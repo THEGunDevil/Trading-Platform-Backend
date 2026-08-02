@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strings"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/ws"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/service"
+	"github.com/internal/ws"
 )
 
 type SupportWSHandler struct {

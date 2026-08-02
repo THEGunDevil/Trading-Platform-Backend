@@ -1,14 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/ws"
+	"github.com/cloudinary/cloudinary-go/v2"
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/service"
+	"github.com/internal/ws"
 )
 
 type SupportRestHandler struct {
@@ -24,49 +30,49 @@ func NewSupportRestHandler(queries *gen.Queries, hub *ws.SupportHub) *SupportRes
 // POST /support/sessions
 // POST /support/sessions
 func (h *SupportRestHandler) CreateSession(c *gin.Context) {
-    userID, ok := service.UserIDFromContext(c)
-    if !ok {
-        service.AbortWithError(c, http.StatusUnauthorized, "unauthorized")
-        return
-    }
+	userID, ok := service.UserIDFromContext(c)
+	if !ok {
+		service.AbortWithError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
-    var req struct {
-        Subject string `json:"subject" binding:"required"`
-    }
-    if err := c.ShouldBindJSON(&req); err != nil {
-        service.AbortWithError(c, http.StatusBadRequest, "subject is required")
-        return
-    }
+	var req struct {
+		Subject string `json:"subject" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		service.AbortWithError(c, http.StatusBadRequest, "subject is required")
+		return
+	}
 
-    // ✅ Check if the user already has an open session
-    existing, err := h.Queries.GetOpenSessionForUser(c.Request.Context(), service.UUIDToPGType(userID))
-    if err == nil && existing.Status == "open" {
-        // Already have an open session – just return it, no new notification
-        c.JSON(http.StatusOK, existing)
-        return
-    }
+	// ✅ Check if the user already has an open session
+	existing, err := h.Queries.GetOpenSessionForUser(c.Request.Context(), service.UUIDToPGType(userID))
+	if err == nil && existing.Status == "open" {
+		// Already have an open session – just return it, no new notification
+		c.JSON(http.StatusOK, existing)
+		return
+	}
 
-    // No existing open session → create a new one
-    session, err := h.Queries.CreateSupportSession(c.Request.Context(), gen.CreateSupportSessionParams{
-        UserID:  service.UUIDToPGType(userID),
-        Subject: req.Subject,
-    })
-    if err != nil {
-        service.AbortWithError(c, http.StatusInternalServerError, "failed to create session")
-        return
-    }
+	// No existing open session → create a new one
+	session, err := h.Queries.CreateSupportSession(c.Request.Context(), gen.CreateSupportSessionParams{
+		UserID:  service.UUIDToPGType(userID),
+		Subject: req.Subject,
+	})
+	if err != nil {
+		service.AbortWithError(c, http.StatusInternalServerError, "failed to create session")
+		return
+	}
 
-    // Extract user name from context or fetch from DB
-    var userName string
-    UserName, err := h.Queries.GetUserNameByID(c.Request.Context(), service.UUIDToPGType(userID))
-    if err == nil && UserName != "" {
-        userName = UserName
-    }
+	// Extract user name from context or fetch from DB
+	var userName string
+	UserName, err := h.Queries.GetUserNameByID(c.Request.Context(), service.UUIDToPGType(userID))
+	if err == nil && UserName != "" {
+		userName = UserName
+	}
 
-    // Notify agents only for truly new sessions
-    h.Hub.TriggerNewSessionNotification(session, userID.String(), userName, req.Subject)
+	// Notify agents only for truly new sessions
+	h.Hub.TriggerNewSessionNotification(session, userID.String(), userName, req.Subject)
 
-    c.JSON(http.StatusCreated, session)
+	c.JSON(http.StatusCreated, session)
 }
 
 // GET /support/sessions/open
@@ -217,8 +223,169 @@ func (h *SupportRestHandler) DeleteMessage(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+const (
+	maxUploadSize = 8 << 20 // 8 MB
+	uploadDir     = "./public/uploads"
+)
+
+// UploadResponse – ক্লায়েন্টকে যা ফেরত দেবো
+type UploadResponse struct {
+	URL     string `json:"url,omitempty"`
+	Error   string `json:"error,omitempty"`
+	Success bool   `json:"success"`
+}
+
 // POST /support/upload
-// func (h *SupportRestHandler) UploadImage(c *gin.Context) {
-// 	// TODO: upload to S3/Cloudinary and return image URL
-// 	c.JSON(http.StatusOK, gin.H{"url": "https://example.com/placeholder.jpg"})
+// func (h *SupportRestHandler) UploadFile(c *gin.Context) {
+// 	// 1. অথেনটিকেশন চেক (অন্য হ্যান্ডলারগুলোর মতো)
+// 	userID, ok := service.UserIDFromContext(c)
+// 	if !ok {
+// 		service.AbortWithError(c, http.StatusUnauthorized, "unauthorized")
+// 		return
+// 	}
+// 	_ = userID // পরে ব্যবহার করতে পারো, যেমন মালিকানা ট্র্যাক করতে
+
+// 	// 2. ফাইলের সাইজ লিমিট (Gin‑এ MaxMultipartMemory সেট না করলে ডিফল্ট 32MB)
+// 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadSize)
+
+// 	// 3. মাল্টিপার্ট ফর্ম থেকে ফাইল নেওয়া
+// 	file, header, err := c.Request.FormFile("file")
+// 	if err != nil {
+// 		service.AbortWithError(c, http.StatusBadRequest, "No file provided")
+// 		return
+// 	}
+// 	defer file.Close()
+
+// 	// 4. ফাইল টাইপ ভ্যালিডেশন
+// 	contentType := header.Header.Get("Content-Type")
+// 	if !strings.HasPrefix(contentType, "image/") {
+// 		service.AbortWithError(c, http.StatusBadRequest, "Only image files are allowed")
+// 		return
+// 	}
+
+// 	// 5. এক্সটেনশন ও অনুমোদিত ফরম্যাট চেক
+// 	ext := strings.ToLower(filepath.Ext(header.Filename))
+// 	if ext == "" {
+// 		ext = ".jpg"
+// 	}
+// 	allowedExts := map[string]bool{
+// 		".jpg": true, ".jpeg": true, ".png": true,
+// 		".gif": true, ".webp": true,
+// 	}
+// 	if !allowedExts[ext] {
+// 		service.AbortWithError(c, http.StatusBadRequest, "Unsupported file type")
+// 		return
+// 	}
+
+// 	// 6. ইউনিক ফাইলনেম তৈরি ও ডিরেক্টরি নিশ্চিত করা
+// 	newName := uuid.New().String() + ext
+// 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+// 		log.Println("Failed to create upload dir:", err)
+// 		service.AbortWithError(c, http.StatusInternalServerError, "Internal server error")
+// 		return
+// 	}
+
+// 	destPath := filepath.Join(uploadDir, newName)
+// 	dst, err := os.Create(destPath)
+// 	if err != nil {
+// 		log.Println("Failed to create destination file:", err)
+// 		service.AbortWithError(c, http.StatusInternalServerError, "Internal server error")
+// 		return
+// 	}
+// 	defer dst.Close()
+
+// 	// 7. ফাইল কপি
+// 	if _, err := io.Copy(dst, file); err != nil {
+// 		log.Println("Failed to save file:", err)
+// 		service.AbortWithError(c, http.StatusInternalServerError, "Internal server error")
+// 		return
+// 	}
+
+// 	// 8. সফল রেসপন্স (Gin JSON)
+// 	url := "/uploads/" + newName
+// 	c.JSON(http.StatusOK, UploadResponse{
+// 		Success: true,
+// 		URL:     url,
+// 	})
 // }
+
+func (h *SupportRestHandler) UploadToCloudinary(c *gin.Context) {
+	// 1. অথেনটিকেশন
+	userID, ok := service.UserIDFromContext(c)
+	if !ok {
+		service.AbortWithError(c, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	_ = userID
+
+	// 2. ফাইল সাইজ লিমিট
+	const maxUploadSize = 8 << 20
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadSize)
+
+	// 3. ফাইল নেওয়া
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		service.AbortWithError(c, http.StatusBadRequest, "No file provided")
+		return
+	}
+	defer file.Close()
+
+	// 4. টাইপ ও এক্সটেনশন ভ্যালিডেশন
+	contentType := header.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "image/") {
+		service.AbortWithError(c, http.StatusBadRequest, "Only image files are allowed")
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext == "" {
+		ext = ".jpg"
+	}
+	allowedExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true,
+		".gif": true, ".webp": true,
+	}
+	if !allowedExts[ext] {
+		service.AbortWithError(c, http.StatusBadRequest, "Unsupported file type")
+		return
+	}
+
+	// 5. Cloudinary ক্লায়েন্ট তৈরি (এনভায়রনমেন্ট ভেরিয়েবল থেকে)
+	cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
+	apiKey := os.Getenv("CLOUDINARY_API_KEY")
+	apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
+
+	if cloudName == "" || apiKey == "" || apiSecret == "" {
+		service.AbortWithError(c, http.StatusInternalServerError, "Cloudinary configuration missing")
+		return
+	}
+
+	cld, err := cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
+	if err != nil {
+		service.AbortWithError(c, http.StatusInternalServerError, "Failed to initialize Cloudinary")
+		return
+	}
+
+	// 6. ইউনিক পাব্লিক আইডি বানানো (ফোল্ডার সহ)
+	publicID := "chat_uploads/" + uuid.New().String()
+
+	// 7. আপলোড করা (io.Reader দিলেই হবে)
+	ctx := context.Background()
+	uniqueFilename := false
+	overwrite := false
+	uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
+		PublicID:       publicID,
+		UniqueFilename: &uniqueFilename,
+		Overwrite:      &overwrite,
+	})
+	if err != nil {
+		service.AbortWithError(c, http.StatusInternalServerError, "Upload to Cloudinary failed")
+		return
+	}
+
+	// 8. সিকিউর URL রিটার্ন
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"url":     uploadResult.SecureURL,
+	})
+}

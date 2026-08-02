@@ -1,4 +1,4 @@
-module github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND
+module github.com
 
 go 1.25.0
 

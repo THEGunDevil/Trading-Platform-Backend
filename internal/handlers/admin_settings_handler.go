@@ -3,10 +3,10 @@ package handlers
 import (
 	"net/http"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 

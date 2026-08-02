@@ -4,9 +4,9 @@ import (
 	"log"
 	"mime/multipart"
 
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
+	"github.com/internal/db"
 )
 
 var cld *cloudinary.Cloudinary

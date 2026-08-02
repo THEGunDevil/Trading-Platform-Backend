@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	gen "github.com/internal/db/gen"
 )
 
 type LimitOrderEngine struct {

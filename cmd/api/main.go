@@ -2,21 +2,22 @@ package main
 
 import (
 	"context"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/config"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/handlers"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/middleware"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/ws"
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv" // added for .env loading
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
+	"github.com/internal/config"
+	"github.com/internal/db"
+	"github.com/internal/handlers"
+	"github.com/internal/middleware"
+	"github.com/internal/service"
+	"github.com/internal/ws"
+	"github.com/joho/godotenv" // added for .env loading
 )
 
 func main() {
@@ -149,6 +150,7 @@ func registerRoutes(
 	support.Use(middleware.AuthMiddleware())
 	{
 		support.POST("/sessions", supportRest.CreateSession)
+		support.POST("/upload/cloudinary", supportRest.UploadToCloudinary)
 		support.GET("/sessions/:id/messages", supportRest.GetMessages)
 		support.GET("/sessions/open", supportRest.GetOpenSession)
 		support.PATCH("/messages/:id", supportRest.UpdateMessage)

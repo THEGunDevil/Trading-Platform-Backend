@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db"
-	gen "github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/db/gen"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/models"
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/internal/db"
+	gen "github.com/internal/db/gen"
+	"github.com/internal/models"
+	"github.com/internal/service"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -337,7 +337,6 @@ func schedulePredictionResolution(predictionID pgtype.UUID, userID pgtype.UUID, 
 			isWin = finalPrice < startPrice
 		}
 	}
-
 
 	status := "lost"
 	if isWin {

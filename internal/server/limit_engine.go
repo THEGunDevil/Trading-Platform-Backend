@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/THEGunDevil/NEXTJS-CRYPTO-PLATFORM-BACKEND/internal/service"
+	"github.com/internal/service"
 )
 
 // StartLimitOrderEngine initializes and returns the WebSocket-based limit order monitor
