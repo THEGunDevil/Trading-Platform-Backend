@@ -13,23 +13,26 @@ import (
 
 const banUser = `-- name: BanUser :exec
 UPDATE users
-SET is_banned = true, ban_reason = $2, ban_until = $3, is_permanent_ban = $4
-WHERE id = $1
+SET is_banned = TRUE,
+    ban_reason = $1,
+    ban_until = $2,
+    is_permanent_ban = $3
+WHERE id = $4
 `
 
 type BanUserParams struct {
-	ID             pgtype.UUID      `json:"id"`
 	BanReason      pgtype.Text      `json:"ban_reason"`
 	BanUntil       pgtype.Timestamp `json:"ban_until"`
 	IsPermanentBan pgtype.Bool      `json:"is_permanent_ban"`
+	ID             pgtype.UUID      `json:"id"`
 }
 
 func (q *Queries) BanUser(ctx context.Context, arg BanUserParams) error {
 	_, err := q.db.Exec(ctx, banUser,
-		arg.ID,
 		arg.BanReason,
 		arg.BanUntil,
 		arg.IsPermanentBan,
+		arg.ID,
 	)
 	return err
 }

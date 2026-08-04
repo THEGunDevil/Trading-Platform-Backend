@@ -480,9 +480,9 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 	}
 
 	var req struct {
-		IsPermanent   bool   `json:"is_permanent"`
-		Reason        string `json:"reason"`
-		DurationHours *int   `json:"duration_hours,omitempty"`
+		IsPermanent   bool   `json:"is_permanent_ban"`
+		Reason        string `json:"ban_reason"`
+		DurationHours *int   `json:"ban_until,omitempty"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		service.AbortWithError(c, http.StatusBadRequest, "invalid request body")
@@ -505,9 +505,9 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 
 	err = h.Queries.BanUser(c.Request.Context(), gen.BanUserParams{
 		ID:             service.UUIDToPGType(parsedID),
-		IsPermanentBan: pgtype.Bool{Bool: req.IsPermanent, Valid: true},
 		BanReason:      service.StringToPGTextNullable(req.Reason),
 		BanUntil:       banUntil,
+		IsPermanentBan: pgtype.Bool{Bool: req.IsPermanent, Valid: true},
 	})
 	if err != nil {
 		log.Printf("BanUser error: %v", err)

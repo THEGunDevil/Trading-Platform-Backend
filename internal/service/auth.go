@@ -52,18 +52,19 @@ func CheckPassword(password, hashed string) error {
 }
 
 // GenerateAccessToken generates a short-lived access token
-func GenerateAccessToken(userID, role string, tokenVersion int32, isBanned bool) (string, error) {
+func GenerateAccessToken(userID, role string, tokenVersion int32, isBanned bool, isPermanentBan bool) (string, error) {
 	if len(accessSecret) == 0 {
 		return "", errors.New("access secret not initialized")
 	}
 
 	claims := jwt.MapClaims{
-		"sub":           userID,
-		"role":          role,
-		"token_version": tokenVersion,
-		"is_banned":     isBanned, // ✅ new claim
-		"exp":           time.Now().Add(15 * time.Minute).Unix(),
-		"iat":           time.Now().Unix(),
+		"sub":              userID,
+		"role":             role,
+		"token_version":    tokenVersion,
+		"is_banned":        isBanned,       // ✅ new claim
+		"is_permanent_ban": isPermanentBan, // ✅ new claim
+		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"iat": time.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -76,17 +77,18 @@ func GenerateAccessToken(userID, role string, tokenVersion int32, isBanned bool)
 }
 
 // GenerateRefreshToken generates a long-lived refresh token
-func GenerateRefreshToken(userID string, tokenVersion int32, isBanned bool) (string, error) {
+func GenerateRefreshToken(userID string, tokenVersion int32, isBanned bool, isPermanentBan bool) (string, error) {
 	if len(refreshSecret) == 0 {
 		return "", errors.New("refresh secret not initialized")
 	}
 
 	claims := jwt.MapClaims{
-		"sub":           userID,
-		"token_version": tokenVersion,
-		"is_banned":     isBanned, // ✅ new claim
-		"exp":           time.Now().Add(7 * 24 * time.Hour).Unix(),
-		"iat":           time.Now().Unix(),
+		"sub":              userID,
+		"token_version":    tokenVersion,
+		"is_banned":        isBanned,       // ✅ new claim
+		"is_permanent_ban": isPermanentBan, // ✅ new claim
+		"exp":              time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"iat":              time.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

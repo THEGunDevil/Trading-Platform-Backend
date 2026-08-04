@@ -36,8 +36,11 @@ UPDATE users SET token_version = token_version + 1 WHERE id = $1;
 
 -- name: BanUser :exec
 UPDATE users
-SET is_banned = true, ban_reason = $2, ban_until = $3, is_permanent_ban = $4
-WHERE id = $1;
+SET is_banned = TRUE,
+    ban_reason = sqlc.arg(ban_reason),
+    ban_until = sqlc.arg(ban_until),
+    is_permanent_ban = sqlc.arg(is_permanent_ban)
+WHERE id = sqlc.arg(id);
 
 -- name: UnbanUser :exec
 UPDATE users
